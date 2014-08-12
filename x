@@ -1,0 +1,249 @@
+
+
+ATOP - workspace      2014/04/11  19:56:02      ------       3d23h45m11s elapsed
+PRC | sys   96m07s | user 350m54s | #proc    227 | #zombie    3 | #exit      0 |
+CPU | sys       2% | user      9% | irq       0% | idle    387% | wait      2% |
+cpu | sys       1% | user      3% | irq       0% | idle     94% | cpu000 w  2% |
+cpu | sys       1% | user      3% | irq       0% | idle     96% | cpu001 w  0% |
+cpu | sys       0% | user      1% | irq       0% | idle     98% | cpu002 w  0% |
+cpu | sys       0% | user      1% | irq       0% | idle     98% | cpu003 w  0% |
+CPL | avg1    0.32 | avg5    1.65 | avg15   2.32 | csw 683645e3 | intr 24454e4 |
+MEM | tot     1.8G | free  284.3M | cache 439.8M | buff   11.4M | slab   62.6M |
+SWP | tot     1.9G | free  946.5M |              | vmcom   4.4G | vmlim   2.8G |
+PAG | scan  2604e4 | stall      0 |              | swin  689902 | swout 940450 |
+DSK |          sda | busy      2% | read 1868176 | write 844227 | avio 3.02 ms |
+NET | transport    | tcpi 20404e3 | tcpo 40659e3 | udpi  672825 | udpo   89056 |
+NET | network      | ipi 28097042 | ipo 40908474 | ipfrw      0 | deliv 2401e4 |
+NET | eth0      0% | pcki 42490e3 | pcko 40917e3 | si  250 Kbps | so 1319 Kbps |
+NET | tap0      0% | pcki   13082 | pcko   86412 | si    0 Kbps | so    0 Kbps |
+NET | br0     ---- | pcki 35406e3 | pcko 40903e3 | si  212 Kbps | so 1319 Kbps |
+NET | lo      ---- | pcki   11966 | pcko   11966 | si    0 Kbps | so    0 Kbps |
+                   *** system and process activity since boot ***
+  PID MINFLT MAJFLT VSTEXT  VSIZE  RSIZE  VGROW  RGROW  MEM CMD            
+13528 119077    117  5493K   2.7G 431.1M   2.7G 431.1M  23% kvm            
+ 2304 5121e4  47945    96K   1.1G 289.1M   1.1G 289.1M  16% firefox        
+ 2207 1588e3   5901    58K 590.7M 36764K 590.7M 36764K   2% unity-panel-se 
+ 2123 427060   7100    47K   1.6G 32472K   1.6G 32472K   2% compiz         
+15180   8595     39    80K 419.8M 31672K 419.8M 31672K   2% plugin-contain 
+ 1416 1013e4   2059  1983K 248.2M 28632K 248.2M 28632K   2% Xorg           
+ 2148 117924   6033  1424K   1.4G 21008K   1.4G 21008K   1% nautilus       
+13592   8982     72   426K 127.0M 20720K 127.0M 20720K   1% apache2        
+ 9773  75436   5831  2500K 756.0M 20240K 756.0M 20240K   1% /usr/bin/termi 
+ 9627  42601   3627  2500K 755.1M 19252K 755.1M 19252K   1% /usr/bin/termi 
+ 2209  31455   4068    72K 419.0M 19228K 419.0M 19228K   1% hud-service    
+17471  57043    910   426K 124.8M 17384K 124.8M 17384K   1% apache2        
+28135 100867   1202     8K   1.8G  8948K   1.8G  8948K   0% vlc            
+ 2517  20424    957    64K 492.8M  6752K 492.8M  6752K   0% update-notifie 
+ 2199  11621   1046   121K 496.4M  6224K 496.4M  6224K   0% gtk-window-dec 
+ 2390  33721    775  2500K 683.4M  5208K 683.4M  5208K   0% unity-scope-vi 
+ 2179   8825    948   313K 469.1M  4880K 469.1M  4880K   0% bamfdaemon     
+15206   2436      0   147K 16704K  4416K 16704K  4416K   0% atop           
+ 2114  50966    703    31K 655.3M  4272K 655.3M  4272K   0% gnome-settings 
+ 2469  23367    805  2500K 390.8M  4196K 390.8M  4196K   0% ubuntuone-sync 
+ 2533  45016    950  2500K 718.6M  4160K 718.6M  4160K   0% update-manager 
+ 5407 130044   4529     8K   1.2G  3900K   1.2G  3900K   0% vlc            
+ 9710  57897    777   895K 24716K  3812K 24716K  3812K   0% bash           
+ 2529   8094    604  2500K 95524K  3768K 95524K  3768K   0% system-service 
+ 2093  16806    307   389K 34520K  3064K 34520K  3064K   0% dbus-daemon    
+ 2051   7679    309   231K 381.5M  2868K 381.5M  2868K   0% gnome-session  
+ 2375 132108    503   122K 299.1M  2736K 299.1M  2736K   0% gnome-screensa 
+ 2134  50450   1344    76K 482.7M  2648K 482.7M  2648K   0% pulseaudio     
+ 2329   8322    884   400K 343.1M  2560K 343.1M  2560K   0% zeitgeist-daem 
+ 3897  55798    851   197K 411.8M  2500K 411.8M  2500K   0% notify-osd     
+ 2139   4138     77    34K 481.5M  2436K 481.5M  2436K   0% bluetooth-appl 
+ 2434   5600    347    67K 378.0M  2428K 378.0M  2428K   0% evolution-alar 
+ 2278   4190    108    18K 319.9M  2404K 319.9M  2404K   0% gdu-notificati 
+14778   1653      0   895K 21148K  2352K 21148K  2352K   0% bash           
+ 2154 265320    181   240K 188.9M  2224K 188.9M  2224K   0% udisks-daemon  
+ 2308   6787    650   122K 404.6M  2188K 404.6M  2188K   0% unity-applicat 
+ 2192   6945    279    48K 43652K  2120K 43652K  2120K   0% gvfsd-metadata 
+ 2234   3560    119    47K 473.7M  2016K 473.7M  2016K   0% indicator-prin 
+ 2138   2887     57    38K 296.3M  2000K 296.3M  2000K   0% polkit-gnome-a 
+ 2230   3801    283    65K 357.8M  1964K 357.8M  1964K   0% indicator-mess 
+ 2150   5207    180    98K 208.7M  1956K 208.7M  1956K   0% gvfs-gdu-volum 
+ 1590   2889    151     7K 190.7M  1940K 190.7M  1940K   0% polkitd        
+ 2310   3248    191   107K 788.2M  1920K 788.2M  1920K   0% unity-files-da 
+14769    694     15    61K 55876K  1912K 55876K  1912K   0% sudo           
+ 2228   2817    169    68K 584.2M  1884K 584.2M  1884K   0% indicator-sess 
+ 2224   3148    158   173K 513.4M  1864K 513.4M  1864K   0% indicator-soun 
+ 1609  70504    128   132K   2.0G  1808K   2.0G  1808K   0% console-kit-da 
+ 2314   5956    279  2500K 354.7M  1788K 354.7M  1788K   0% unity-lens-vid 
+ 1230   2046    142   389K 25076K  1768K 25076K  1768K   0% dbus-daemon    
+ 2140   3055     95    32K 440.4M  1748K 440.4M  1748K   0% gnome-fallback 
+ 1277   2105    270   115K 33984K  1704K 33984K  1704K   0% avahi-daemon   
+ 2287   3228     45    28K 415.4M  1684K 415.4M  1684K   0% telepathy-indi 
+ 2346   5222    277    88K 408.8M  1672K 408.8M  1672K   0% zeitgeist-data 
+ 1448  47623    135    38K 199.7M  1664K 199.7M  1664K   0% whoopsie       
+14770    717      3    29K 57732K  1660K 57732K  1660K   0% su             
+ 2269   3482    146    12K 325.0M  1652K 325.0M  1652K   0% ubuntu-geoip-p 
+ 2344   7049    736   313K 240.1M  1628K 240.1M  1628K   0% zeitgeist-fts  
+ 2040   7881    853   871K 504.2M  1608K 504.2M  1608K   0% gnome-keyring- 
+ 2222   2687    149    40K 476.2M  1604K 476.2M  1604K   0% indicator-date 
+ 1738   2760     69   133K 214.8M  1588K 214.8M  1588K   0% upowerd        
+14906    508      0     9K 27180K  1528K 27180K  1528K   0% pickup         
+ 1436  13383    223 10872K 545.0M  1512K 545.0M  1512K   0% mysqld         
+ 2312   2638    118   100K 317.0M  1496K 317.0M  1496K   0% unity-music-da 
+ 1587   3354    110    70K 118.7M  1488K 118.7M  1488K   0% accounts-daemo 
+ 2294   2529    241   374K 313.8M  1480K 313.8M  1480K   0% mission-contro 
+ 2227   2344    152    40K 419.7M  1436K 419.7M  1436K   0% indicator-appl 
+ 1274   5616    347   424K 101.7M  1344K 101.7M  1344K   0% cupsd          
+ 1862   5792    359   119K 490.6M  1300K 490.6M  1300K   0% colord         
+ 2173   1550    101   148K 52848K  1252K 52848K  1252K   0% gvfsd-trash    
+    1  21860    262   150K 24604K  1228K 24604K  1228K   0% init           
+ 2108   2193    194    39K 54172K  1208K 54172K  1208K   0% gconfd-2       
+ 2403   1115      9    13K 267.4M  1200K 267.4M  1200K   0% at-spi-bus-lau 
+ 2442   4591    165    24K 748.0M  1160K 748.0M  1160K   0% e-calendar-fac 
+ 2299   3622     20    28K 390.9M  1140K 390.9M  1140K   0% goa-daemon     
+ 2361   1357     23    56K 568.6M  1136K 568.6M  1136K   0% unity-musicsto 
+ 2631   1273     24   123K 282.7M  1116K 282.7M  1116K   0% deja-dup-monit 
+ 1387   2019     36   156K 264.3M  1020K 264.3M  1020K   0% lightdm        
+29197   1261     86    60K 27344K   940K 27344K   940K   0% qmgr           
+19629   1265     27   179K 25840K   936K 25840K   936K   0% apt-get        
+ 2267   1115     32    35K 47868K   928K 47868K   928K   0% geoclue-master 
+ 2097   1294     52   133K 48200K   908K 48200K   908K   0% gvfsd          
+ 2458   3056     18    20K 618.6M   888K 618.6M   888K   0% e-addressbook- 
+ 1878   1484     15   156K 153.1M   868K 153.1M   868K   0% lightdm        
+ 2566   1699     83    28K 256.1M   868K 256.1M   868K   0% dconf-service  
+11584   4492     17   895K 24588K   860K 24588K   860K   0% bash           
+15256   1629    105   406K 42680K   776K 42680K   776K   0% ssh            
+ 2175    813      1   134K 48228K   760K 48228K   760K   0% gvfsd-burn     
+19635    871     53    52K 33388K   760K 33388K   760K   0% ftp            
+28045   3351     39   895K 21248K   716K 21248K   716K   0% bash           
+ 9651  19399    435   895K 24500K   704K 24500K   704K   0% bash           
+10018   2812    194   406K 43128K   664K 43128K   664K   0% ssh            
+ 2163   1059     63    41K 134.7M   652K 134.7M   652K   0% gvfs-afc-volum 
+ 2161    999     49    45K 56156K   640K 56156K   640K   0% gvfs-gphoto2-v 
+ 1254    497     36   811K 21196K   608K 21196K   608K   0% bluetoothd     
+ 2099   1068     12    26K 339.2M   608K 339.2M   608K   0% gvfs-fuse-daem 
+29193  28077     32    33K 25116K   608K 25116K   608K   0% master         
+28036    743      3    61K 56104K   600K 56104K   600K   0% sudo           
+26705   7438     20   895K 24632K   544K 24632K   544K   0% bash           
+19634    730      5    63K 33396K   540K 33396K   540K   0% http           
+11941   5641     81   426K 110.1M   504K 110.1M   504K   0% apache2        
+22073   1172     54   406K 41908K   492K 41908K   492K   0% ssh            
+19643   1095      1    15K 24948K   484K 24948K   484K   0% bzip2          
+ 1195   1360    211   342K 243.6M   460K 243.6M   460K   0% rsyslogd       
+13919    984     39   406K 41672K   452K 41672K   452K   0% ssh            
+ 2137    948      1     5K 95964K   448K 95964K   448K   0% gconf-helper   
+ 9901   2863    104   406K 44792K   444K 44792K   444K   0% ssh            
+28037    706      3    29K 57732K   444K 57732K   444K   0% su             
+10143   1406     44   406K 41668K   432K 41668K   432K   0% ssh            
+19633    692      3    63K 33396K   424K 33396K   424K   0% http           
+19637    607      1    27K 24960K   424K 24960K   424K   0% gpgv           
+ 1354 832874      9    19K 15988K   412K 15988K   412K   0% irqbalance     
+ 1385   3584     32    37K 19120K   408K 19120K   408K   0% cron           
+ 1919    822      3    53K 164.9M   404K 164.9M   404K   0% rtkit-daemon   
+15201   2871      2   895K 24516K   400K 24516K   400K   0% bash           
+10139   1366     40   406K 41668K   396K 41668K   396K   0% ssh            
+10216  50460    482   895K 27952K   392K 27952K   392K   0% bash           
+ 9847   3329     89   895K 24424K   388K 24424K   388K   0% bash           
+28199    376      1    29K 19824K   380K 19824K   380K   0% xprop          
+ 9785   2835      3   895K 24424K   376K 24424K   376K   0% bash           
+ 9964   2842      2   895K 24424K   376K 24424K   376K   0% bash           
+10029   2866      2   895K 24424K   376K 24424K   376K   0% bash           
+10084   2854      2   895K 24424K   376K 24424K   376K   0% bash           
+ 1174   3265    128   487K 50040K   356K 50040K   356K   0% sshd           
+  407   2499     19   129K 21764K   352K 21764K   352K   0% udevd          
+15203    214      0    21K  7180K   352K  7180K   352K   0% sleep          
+19433    274      1    26K 12752K   332K 12752K   332K   0% anacron        
+ 2092    154      0    23K 26568K   320K 26568K   320K   0% dbus-launch    
+ 1298    395      4    25K 15804K   312K 15804K   312K   0% getty          
+ 1303    401      1    25K 15804K   312K 15804K   312K   0% getty          
+ 1314    395      0    25K 15804K   312K 15804K   312K   0% getty          
+ 1315    398      0    25K 15804K   312K 15804K   312K   0% getty          
+ 1318    396      0    25K 15804K   312K 15804K   312K   0% getty          
+ 1541    405      1    25K 15804K   312K 15804K   312K   0% getty          
+ 1344    239      0    38K  4468K   304K  4468K   304K   0% acpid          
+28188   1995      3   100K  4408K   304K  4408K   304K   0% xdg-screensave 
+10914    260      7   129K 21868K   292K 21868K   292K   0% udevd          
+ 1414    444      2   557K 11468K   272K 11468K   272K   0% git-daemon     
+19453    530      1   100K  4408K   252K  4408K   252K   0% apt            
+17700    580     29     8K 52152K   240K 52152K   240K   0% dbus           
+ 2198    342      0   100K  4408K   184K  4408K   184K   0% sh             
+19445    225      1   100K  4408K   184K  4408K   184K   0% sh             
+28195    194      0   100K  4408K   180K  4408K   180K   0% xdg-screensave 
+ 2156    170      1   240K 45524K   144K 45524K   144K   0% udisks-daemon  
+19446    393      1    12K  4308K   144K  4308K   144K   0% run-parts      
+10917    224      0   129K 21760K    96K 21760K    96K   0% udevd          
+  984    410     22    97K 15196K    92K 15196K    92K   0% upstart-socket 
+ 1386    159     32    16K 16916K    80K 16916K    80K   0% atd            
+  405    512     37    43K 17240K    68K 17240K    68K   0% upstart-udev-b 
+ 1279     90      0   115K 32188K    52K 32188K    52K   0% avahi-daemon   
+ 2089     55      3   117K 12576K    32K 12576K    32K   0% ssh-agent      
+ 1291    449      3    13K   192K    24K   192K    24K   0% runsvdir       
+ 1313     95     25    14K   168K     8K   168K     8K   0% runsv          
+ 1413    298     27    25K   188K     4K   188K     4K   0% svlogd         
+    2      0      0     0K     0K     0K     0K     0K   0% kthreadd       
+    3      0      0     0K     0K     0K     0K     0K   0% ksoftirqd/0    
+    5      0      0     0K     0K     0K     0K     0K   0% kworker/0:0H   
+    7      0      0     0K     0K     0K     0K     0K   0% kworker/u:0H   
+    8      0      0     0K     0K     0K     0K     0K   0% migration/0    
+    9      0      0     0K     0K     0K     0K     0K   0% rcu_bh         
+   10      0      0     0K     0K     0K     0K     0K   0% rcu_sched      
+   11      0      0     0K     0K     0K     0K     0K   0% watchdog/0     
+   12      0      0     0K     0K     0K     0K     0K   0% watchdog/1     
+   13      0      0     0K     0K     0K     0K     0K   0% ksoftirqd/1    
+   14      0      0     0K     0K     0K     0K     0K   0% migration/1    
+   15      0      0     0K     0K     0K     0K     0K   0% kworker/1:0    
+   16      0      0     0K     0K     0K     0K     0K   0% kworker/1:0H   
+   17      0      0     0K     0K     0K     0K     0K   0% watchdog/2     
+   18      0      0     0K     0K     0K     0K     0K   0% ksoftirqd/2    
+   19      0      0     0K     0K     0K     0K     0K   0% migration/2    
+   20      0      0     0K     0K     0K     0K     0K   0% kworker/2:0    
+   21      0      0     0K     0K     0K     0K     0K   0% kworker/2:0H   
+   22      0      0     0K     0K     0K     0K     0K   0% watchdog/3     
+   23      0      0     0K     0K     0K     0K     0K   0% ksoftirqd/3    
+   24      0      0     0K     0K     0K     0K     0K   0% migration/3    
+   25      0      0     0K     0K     0K     0K     0K   0% kworker/3:0    
+   26      0      0     0K     0K     0K     0K     0K   0% kworker/3:0H   
+   27      0      0     0K     0K     0K     0K     0K   0% cpuset         
+   28      0      0     0K     0K     0K     0K     0K   0% khelper        
+   29      0      0     0K     0K     0K     0K     0K   0% kdevtmpfs      
+   30      0      0     0K     0K     0K     0K     0K   0% netns          
+   31      0      0     0K     0K     0K     0K     0K   0% bdi-default    
+   32      0      0     0K     0K     0K     0K     0K   0% kintegrityd    
+   33      0      0     0K     0K     0K     0K     0K   0% kblockd        
+   34      0      0     0K     0K     0K     0K     0K   0% ata_sff        
+   35      0      0     0K     0K     0K     0K     0K   0% khubd          
+   36      0      0     0K     0K     0K     0K     0K   0% md             
+   37      0      0     0K     0K     0K     0K     0K   0% devfreq_wq     
+   40      0      0     0K     0K     0K     0K     0K   0% khungtaskd     
+   41      0      0     0K     0K     0K     0K     0K   0% kswapd0        
+   42      0      0     0K     0K     0K     0K     0K   0% ksmd           
+   43      0      0     0K     0K     0K     0K     0K   0% khugepaged     
+   44      0      0     0K     0K     0K     0K     0K   0% fsnotify_mark  
+   45      0      0     0K     0K     0K     0K     0K   0% ecryptfs-kthre 
+   46      0      0     0K     0K     0K     0K     0K   0% crypto         
+   57      0      0     0K     0K     0K     0K     0K   0% kthrotld       
+   60      0      0     0K     0K     0K     0K     0K   0% kworker/1:1    
+   61      0      0     0K     0K     0K     0K     0K   0% binder         
+   80      0      0     0K     0K     0K     0K     0K   0% deferwq        
+   81      0      0     0K     0K     0K     0K     0K   0% charger_manage 
+   82      0      0     0K     0K     0K     0K     0K   0% kworker/2:1    
+   83      0      0     0K     0K     0K     0K     0K   0% kworker/3:1    
+  233      0      0     0K     0K     0K     0K     0K   0% scsi_eh_0      
+  234      0      0     0K     0K     0K     0K     0K   0% scsi_eh_1      
+  235      0      0     0K     0K     0K     0K     0K   0% scsi_eh_2      
+  236      0      0     0K     0K     0K     0K     0K   0% scsi_eh_3      
+  237      0      0     0K     0K     0K     0K     0K   0% scsi_eh_4      
+  240      0      0     0K     0K     0K     0K     0K   0% kworker/u:4    
+  242      0      0     0K     0K     0K     0K     0K   0% kworker/u:6    
+  268      0      0     0K     0K     0K     0K     0K   0% kworker/0:1H   
+  269      0      0     0K     0K     0K     0K     0K   0% kjournald      
+  282      0      0     0K     0K     0K     0K     0K   0% flush-8:0      
+  749      0      0     0K     0K     0K     0K     0K   0% irq/43-mei     
+  773      0      0     0K     0K     0K     0K     0K   0% kpsmoused      
+  778      0      0     0K     0K     0K     0K     0K   0% hd-audio0      
+  781      0      0     0K     0K     0K     0K     0K   0% kvm-irqfd-clea 
+ 1131      0      0     0K     0K     0K     0K     0K   0% kworker/1:1H   
+ 1141      0      0     0K     0K     0K     0K     0K   0% kjournald      
+ 1299      0      0     0K     0K     0K     0K     0K   0% krfcommd       
+ 1731      0      0     0K     0K     0K     0K     0K   0% kworker/2:1H   
+ 2352    258      0    42K  7200K     0K  7200K     0K   0% cat            
+ 2572      0      0     0K     0K     0K     0K     0K   0% kworker/3:1H   
+ 9650     24      0     0K     0K     0K     0K     0K   0% /usr/bin/termi 
+ 9784     24      0     0K     0K     0K     0K     0K   0% /usr/bin/termi 
+11509      0      0     0K     0K     0K     0K     0K   0% kworker/0:0    
+13556      0      0     0K     0K     0K     0K     0K   0% kvm-pit/13528  
+14753      0      0     0K     0K     0K     0K     0K   0% kworker/0:2    
+28146    182      2     0K     0K     0K     0K     0K   0% sh             
