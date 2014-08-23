@@ -310,6 +310,9 @@ static size_t save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
     return size;
 }
 
+static FILE *migration_log_file;
+
+
 /* This is the last block that we have visited serching for dirty pages
  */
 static RAMBlock *last_seen_block;
@@ -604,7 +607,11 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                  * page would be stale
                  */
                 /*xbzrle_cache_zero_page(current_addr);
-            }*/ else if (!ram_bulk_stage && migrate_use_xbzrle()) {
+            }*/ 
+            else if (!ram_bulk_stage && migrate_use_xbzrle()) {
+                if (!cache_is_cached(XBZRLE.cache, current_addr)) {  //cache miss occured
+                    fprintf(migration_log_file, "cache miss : %" PRIu64 "\n", current_addr);
+                }
                 bytes_sent = save_xbzrle_page(f, p, current_addr, block,
                                               offset, cont, last_stage);
                 if (!last_stage) {
@@ -741,7 +748,6 @@ static void copy_migration_bitmap()
 }
 
 #define MAX_WAIT 50 /* ms, half buffered_file limit */
-static FILE *migration_log_file;
 
 
 static int ram_save_setup(QEMUFile *f, void *opaque)
@@ -750,7 +756,6 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     ram_pages = last_ram_offset() >> TARGET_PAGE_BITS;
     //migration_log_file = fopen("/var/log/migration_log_without_skip.txt", "a");
     migration_log_file = fopen(qemu_name, "a");
-    fprintf(migration_log_file, "SETTING UP %d \n");
 
     migration_bitmap = bitmap_new(ram_pages);
     bitmap_set(migration_bitmap, 0, ram_pages);
@@ -761,7 +766,6 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
     if (migrate_use_xbzrle()) {
         qemu_mutex_lock_iothread();
-        fprintf(migration_log_file, "XBZRLE SETTING UP %d \n");
         XBZRLE.cache = cache_init(migrate_xbzrle_cache_size() /
                                   TARGET_PAGE_SIZE,
                                   TARGET_PAGE_SIZE);
@@ -820,10 +824,6 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
 static int ram_save_iterate(QEMUFile *f, void *opaque)
 {
-    static int c = 0;
-    fprintf(migration_log_file, "i %d\n", c++);
-    fflush(migration_log_file);
-
     int ret;
     int i;
     int64_t t0;
@@ -893,9 +893,7 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
 
 static int ram_save_complete(QEMUFile *f, void *opaque)
 {
-    fprintf(migration_log_file, "COMPLETE %d \n");
-
-    fclose(migration_log_file);
+    
 
     qemu_mutex_lock_ramlist();
     migration_bitmap_sync();
@@ -915,6 +913,8 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
         }
         bytes_transferred += bytes_sent;
     }
+
+    fclose(migration_log_file); //close after last ram_save_block as cache misses are being recorder there in log file
 
     ram_control_after_iterate(f, RAM_CONTROL_FINISH);
     migration_end();
