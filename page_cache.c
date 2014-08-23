@@ -234,3 +234,19 @@ int64_t cache_resize(PageCache *cache, int64_t new_num_pages)
 
     return cache->max_num_items;
 }
+
+/* print all pages in cache - their Virtual page numbers*/
+void cache_print(PageCache * cache, FILE *log_file, int round_no){
+    if(cache == NULL) {
+        fprintf(log_file, "Cache round %d : PageCache NULL\n", round_no);
+    }
+    else {
+        int64_t i;
+        fprintf(log_file, "Cache round %d :", round_no);
+        for(i=0; i< cache->max_num_items; i++){
+            fprintf(log_file, "%" PRIu64 " ", 
+               cache->page_cache[i].it_addr);
+        }
+        fprintf(log_file, "\n");
+    }
+}

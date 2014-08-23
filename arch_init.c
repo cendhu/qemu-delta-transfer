@@ -750,6 +750,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     ram_pages = last_ram_offset() >> TARGET_PAGE_BITS;
     //migration_log_file = fopen("/var/log/migration_log_without_skip.txt", "a");
     migration_log_file = fopen(qemu_name, "a");
+    fprintf(migration_log_file, "SETTING UP %d \n");
 
     migration_bitmap = bitmap_new(ram_pages);
     bitmap_set(migration_bitmap, 0, ram_pages);
@@ -760,6 +761,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
     if (migrate_use_xbzrle()) {
         qemu_mutex_lock_iothread();
+        fprintf(migration_log_file, "XBZRLE SETTING UP %d \n");
         XBZRLE.cache = cache_init(migrate_xbzrle_cache_size() /
                                   TARGET_PAGE_SIZE,
                                   TARGET_PAGE_SIZE);
@@ -818,6 +820,10 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
 static int ram_save_iterate(QEMUFile *f, void *opaque)
 {
+    static int c = 0;
+    fprintf(migration_log_file, "i %d\n", c++);
+    fflush(migration_log_file);
+
     int ret;
     int i;
     int64_t t0;
@@ -887,6 +893,8 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
 
 static int ram_save_complete(QEMUFile *f, void *opaque)
 {
+    fprintf(migration_log_file, "COMPLETE %d \n");
+
     fclose(migration_log_file);
 
     qemu_mutex_lock_ramlist();
@@ -948,6 +956,9 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
         round_active = false;
         remaining_size = ram_save_remaining() * TARGET_PAGE_SIZE;
 
+        if(migrate_use_xbzrle())  //print xbzrle cache if enabled
+            cache_print(XBZRLE.cache, migration_log_file, pre_copy_round); 
+        
         fprintf(migration_log_file, "%lu normal %lu zero %lu dirted %lu ",
                 pre_copy_round, normal_pages_sent, zero_pages_sent, migration_dirty_pages);
         fflush(migration_log_file);
