@@ -238,14 +238,14 @@ int64_t cache_resize(PageCache *cache, int64_t new_num_pages)
 /* print all pages in cache - their Virtual page numbers*/
 void cache_print(PageCache * cache, FILE *log_file, int round_no){
     if(cache == NULL) {
-        fprintf(log_file, "Cache round %d : PageCache NULL\n", round_no);
+        fprintf(log_file, "%d PageCache NULL\n", round_no);
     }
     else {
-        int64_t i;
-        fprintf(log_file, "Cache round %d :", round_no);
+        int64_t i, page_no;
+        fprintf(log_file, "%d ", round_no);
         for(i=0; i< cache->max_num_items; i++){
-            fprintf(log_file, "%" PRIu64 " ", 
-               cache->page_cache[i].it_addr);
+            int64_t page_no = (cache->page_cache[i].it_addr == -1) ? -1 : (cache->page_cache[i].it_addr/cache->page_size);
+            fprintf(log_file, "%" PRId64 " ", page_no);
         }
         fprintf(log_file, "\n");
     }

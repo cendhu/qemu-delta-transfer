@@ -310,8 +310,9 @@ static size_t save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
     return size;
 }
 
-static FILE *migration_log_file;
 
+static FILE * cache_log_file; //file containing pages in cache after each iteration
+static FILE * cache_misses_log_file; //file containing cache misses(page no) in each iteration
 
 /* This is the last block that we have visited serching for dirty pages
  */
@@ -610,7 +611,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
             }*/ 
             else if (!ram_bulk_stage && migrate_use_xbzrle()) {
                 if (!cache_is_cached(XBZRLE.cache, current_addr)) {  //cache miss occured
-                    fprintf(migration_log_file, "cache miss : %" PRIu64 "\n", current_addr);
+                    fprintf(cache_misses_log_file, "%" PRId64 " ", current_addr/TARGET_PAGE_SIZE);
                 }
                 bytes_sent = save_xbzrle_page(f, p, current_addr, block,
                                               offset, cont, last_stage);
@@ -748,6 +749,7 @@ static void copy_migration_bitmap()
 }
 
 #define MAX_WAIT 50 /* ms, half buffered_file limit */
+static FILE *migration_log_file;
 
 
 static int ram_save_setup(QEMUFile *f, void *opaque)
@@ -756,6 +758,20 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     ram_pages = last_ram_offset() >> TARGET_PAGE_BITS;
     //migration_log_file = fopen("/var/log/migration_log_without_skip.txt", "a");
     migration_log_file = fopen(qemu_name, "a");
+
+    char qemu_name_cache[200];
+    qemu_name_cache[0] = '\0';
+    char qemu_name_cache_misses[200];
+    qemu_name_cache_misses[0] = '\0';
+
+    strcat(qemu_name_cache, qemu_name);
+    strcat(qemu_name_cache, "_cache_log");
+    strcat(qemu_name_cache_misses, qemu_name);
+    strcat(qemu_name_cache_misses, "_cache_misses_log");
+
+    cache_log_file = fopen(qemu_name_cache, "w");
+    cache_misses_log_file = fopen(qemu_name_cache_misses, "w");
+
 
     migration_bitmap = bitmap_new(ram_pages);
     bitmap_set(migration_bitmap, 0, ram_pages);
@@ -893,7 +909,7 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
 
 static int ram_save_complete(QEMUFile *f, void *opaque)
 {
-    
+    fclose(migration_log_file);
 
     qemu_mutex_lock_ramlist();
     migration_bitmap_sync();
@@ -914,10 +930,15 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
         bytes_transferred += bytes_sent;
     }
 
-    fclose(migration_log_file); //close after last ram_save_block as cache misses are being recorder there in log file
-
     ram_control_after_iterate(f, RAM_CONTROL_FINISH);
     migration_end();
+
+    fclose(cache_log_file);
+    fprintf(cache_misses_log_file, "-1\n"); // this is because cache misses printing during above 
+                                            // ram_save_block(f, true) are not followed by -1, 
+                                            // since it is not followed by ram_save_pending(where -1 is appended) 
+
+    fclose(cache_misses_log_file);
 
     FILE *dirty_bitmap_fd = fopen("/var/log/dirty_bitmap.txt", "w");
     int i = 0, j = 0;
@@ -957,10 +978,13 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
         remaining_size = ram_save_remaining() * TARGET_PAGE_SIZE;
 
         if(migrate_use_xbzrle())  //print xbzrle cache if enabled
-            cache_print(XBZRLE.cache, migration_log_file, pre_copy_round); 
+            cache_print(XBZRLE.cache, cache_log_file, pre_copy_round); 
         
         fprintf(migration_log_file, "%lu normal %lu zero %lu dirted %lu ",
                 pre_copy_round, normal_pages_sent, zero_pages_sent, migration_dirty_pages);
+
+        fprintf(cache_misses_log_file, "-1\n");
+
         fflush(migration_log_file);
 
         pre_copy_round++;
