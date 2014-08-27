@@ -79,7 +79,7 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata);
  */
 int64_t cache_resize(PageCache *cache, int64_t num_pages);
 
-/* print all pages in cache - their Virtual page numbers*/
-void cache_print(PageCache * cache, FILE *log_file, int round_no);
+/* store cache content in form of bitmap */
+void cache_copy_bitmap(PageCache * cache, unsigned long *cache_content_bitmap);
 
 #endif

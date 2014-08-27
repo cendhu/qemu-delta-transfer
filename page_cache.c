@@ -24,6 +24,7 @@
 
 #include "qemu-common.h"
 #include "migration/page_cache.h"
+#include "qemu/bitops.h"
 
 #ifdef DEBUG_CACHE
 #define DPRINTF(fmt, ...) \
@@ -237,19 +238,14 @@ int64_t cache_resize(PageCache *cache, int64_t new_num_pages)
 
 
 //ASHISH-START
-/* print all pages in cache - their Virtual page numbers*/
-void cache_print(PageCache * cache, FILE *log_file, int round_no){
-    if(cache == NULL) {
-        fprintf(log_file, "%d PageCache NULL\n", round_no);
-    }
-    else {
-        int64_t i, page_no;
-        fprintf(log_file, "%d ", round_no);
-        for(i=0; i< cache->max_num_items; i++){
-            int64_t page_no = (cache->page_cache[i].it_addr == -1) ? -1 : (cache->page_cache[i].it_addr/cache->page_size);
-            fprintf(log_file, "%" PRId64 " ", page_no);
+/* store cache content in form of bitmap */
+void cache_copy_bitmap(PageCache * cache, unsigned long *cache_content_bitmap){
+    int64_t i, page_no;
+    for(i=0; i< cache->max_num_items; i++){
+        page_no = (cache->page_cache[i].it_addr == -1) ? -1 : (cache->page_cache[i].it_addr/cache->page_size);
+        if(page_no != -1){
+            set_bit(page_no, cache_content_bitmap);
         }
-        fprintf(log_file, "\n");
     }
 }
 //ASHISH-END
