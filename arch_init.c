@@ -750,11 +750,13 @@ static void copy_migration_bitmap()
     }
 }
 
+//ASHISH-START
 unsigned long *cache_content[30];
 static void copy_cache_content(){
     cache_content[pre_copy_round] = bitmap_new(ram_pages);
     cache_copy_bitmap(XBZRLE.cache, cache_content[pre_copy_round]);
 }
+//ASHISH-END
 
 #define MAX_WAIT 50 /* ms, half buffered_file limit */
 static FILE *migration_log_file;
