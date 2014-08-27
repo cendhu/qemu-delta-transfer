@@ -310,12 +310,13 @@ static size_t save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
     return size;
 }
 
-
+//ASHISH-START
 static FILE * cache_log_file; //file containing pages in cache after each iteration
 static FILE * cache_misses_log_file; //file containing cache misses(page no) in each iteration
 
 static int64_t * cache_misses_array; // store cache misses(page #) during a iteration
 static uint64_t cache_misses_count;  // store miss counts during a iteration.
+//ASHISH-END
 
 /* This is the last block that we have visited serching for dirty pages
  */
@@ -613,11 +614,13 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 /*xbzrle_cache_zero_page(current_addr);
             }*/ 
             else if (!ram_bulk_stage && migrate_use_xbzrle()) {
+                //ASHISH-START
                 if (!cache_is_cached(XBZRLE.cache, current_addr)) {  //cache miss occured
                     cache_misses_array[cache_misses_count] = current_addr/TARGET_PAGE_SIZE;
                     cache_misses_count++;
                     //fprintf(cache_misses_log_file, "%" PRId64 " ", current_addr/TARGET_PAGE_SIZE);
                 }
+                //ASHISH-END
                 bytes_sent = save_xbzrle_page(f, p, current_addr, block,
                                               offset, cont, last_stage);
                 if (!last_stage) {
@@ -764,6 +767,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     //migration_log_file = fopen("/var/log/migration_log_without_skip.txt", "a");
     migration_log_file = fopen(qemu_name, "a");
 
+    //ASHISH-START
     char qemu_name_cache[200];
     qemu_name_cache[0] = '\0';
     char qemu_name_cache_misses[200];
@@ -789,7 +793,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
                 migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE,
                 TARGET_PAGE_SIZE); // First line contains #pages in cache(int64_t) and page_size(unsigned int).
                                     //Will help while parsing the log file
-
+    //ASHISH-END
 
     migration_bitmap = bitmap_new(ram_pages);
     bitmap_set(migration_bitmap, 0, ram_pages);
@@ -925,6 +929,7 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
     return total_sent;
 }
 
+//ASHISH-START
 void print_cache_misses(){ //print stored cache misses
     uint64_t i;
     for(i=0; i < cache_misses_count; i++){
@@ -933,6 +938,7 @@ void print_cache_misses(){ //print stored cache misses
     fprintf(cache_misses_log_file, "-1\n");
     cache_misses_count = 0;
 }
+//ASHISH-END
 
 static int ram_save_complete(QEMUFile *f, void *opaque)
 {
@@ -960,6 +966,7 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     ram_control_after_iterate(f, RAM_CONTROL_FINISH);
     migration_end();
 
+    //ASHISH-START
     fclose(cache_log_file);
 
     print_cache_misses();   // this is because cache misses recorded during above 
@@ -976,6 +983,8 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     int i = 0, j = 0;
     int no_longs = ram_pages / BITS_PER_LONG;
     fprintf(dirty_bitmap_fd, "%" PRIu64 " %d %d\n", ram_pages, no_longs, BITS_PER_LONG);
+    //ASHISH-END
+
     for (i = 1; i < pre_copy_round; i++) {
         for (j = 0; j < no_longs; j++) {
             fprintf(dirty_bitmap_fd, "%lu ", dirty_bitmap[i][j]);
@@ -1011,6 +1020,7 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
         round_active = false;
         remaining_size = ram_save_remaining() * TARGET_PAGE_SIZE;
 
+        //ASHISH-START
         if(migrate_use_xbzrle())  //print xbzrle cache if enabled
             cache_print(XBZRLE.cache, cache_log_file, pre_copy_round); 
         
@@ -1019,7 +1029,8 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
         fflush(migration_log_file);
 
         print_cache_misses();
-
+        //ASHISH-END
+        
         pre_copy_round++;
         zero_pages_sent = 0;
         normal_pages_sent = 0;

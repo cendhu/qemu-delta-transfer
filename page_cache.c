@@ -235,6 +235,8 @@ int64_t cache_resize(PageCache *cache, int64_t new_num_pages)
     return cache->max_num_items;
 }
 
+
+//ASHISH-START
 /* print all pages in cache - their Virtual page numbers*/
 void cache_print(PageCache * cache, FILE *log_file, int round_no){
     if(cache == NULL) {
@@ -250,3 +252,4 @@ void cache_print(PageCache * cache, FILE *log_file, int round_no){
         fprintf(log_file, "\n");
     }
 }
+//ASHISH-END
