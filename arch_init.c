@@ -323,6 +323,13 @@ static ram_addr_t last_offset;
 static unsigned long *migration_bitmap;
 static uint64_t migration_dirty_pages;
 static uint64_t normal_pages_sent;
+//CENDHU_START
+static uint64_t wrong_dirty_page;
+static uint64_t round_xbzrle_cache_miss;
+static uint64_t round_xbzrle_overflows;
+static uint64_t round_xbzrle_pages;
+static uint64_t round_xbzrle_bytes;
+//CENDHU_END
 static uint64_t zero_pages_sent;
 static uint64_t total_page_sent;
 static uint64_t pre_copy_round;
@@ -363,6 +370,9 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
             }
         }
         acct_info.xbzrle_cache_miss++;
+        //CENDHU_START
+        round_xbzrle_cache_miss++;
+        //CENDHU_END
         return -1;
     }
 
@@ -377,10 +387,16 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
                                        TARGET_PAGE_SIZE);
     if (encoded_len == 0) {
         DPRINTF("Skipping unmodified page\n");
+        //CENDHU_START
+        wrong_dirty_page++;
+        //CENDHU_END
         return 0;
     } else if (encoded_len == -1) {
         DPRINTF("Overflow\n");
         acct_info.xbzrle_overflows++;
+        //CENDHU_START
+        round_xbzrle_overflows++;
+        //CENDHU_END
         /* update data in the cache */
         memcpy(prev_cached_page, current_data, TARGET_PAGE_SIZE);
         return -1;
@@ -398,6 +414,11 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
     qemu_put_buffer(f, XBZRLE.encoded_buf, encoded_len);
     bytes_sent += encoded_len + 1 + 2;
     acct_info.xbzrle_pages++;
+    //CENDHU_START
+    round_xbzrle_pages++;
+    normal_pages_sent++;
+    round_xbzrle_bytes += bytes_sent;
+    //CENDHU_END
     acct_info.xbzrle_bytes += bytes_sent;
 
     return bytes_sent;
@@ -595,20 +616,24 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         normal_pages_sent++;
                     } else if (bytes_sent == 0) {
                         acct_info.dup_pages++;
+                        //CENDHU_START
+                        zero_pages_sent++;
+                        //CENDHU_END
                     }
                 }
-            } /*else if (is_zero_range(p, TARGET_PAGE_SIZE)) {
+            } /*
+            else if (is_zero_range(p, TARGET_PAGE_SIZE)) {
                 acct_info.dup_pages++;
                 bytes_sent = save_block_hdr(f, block, offset, cont,
                                             RAM_SAVE_FLAG_COMPRESS);
                 qemu_put_byte(f, 0);
                 zero_pages_sent++;
-                bytes_sent++;*/
-                /* Must let xbzrle know, otherwise a previous (now 0'd) cached
+                bytes_sent++;
+                *//* Must let xbzrle know, otherwise a previous (now 0'd) cached
                  * page would be stale
                  */
                 /*xbzrle_cache_zero_page(current_addr);
-            }*/ 
+            } */
             else if (!ram_bulk_stage && migrate_use_xbzrle()) {
                 //ASHISH-START
                 if (!cache_is_cached(XBZRLE.cache, current_addr)) {
@@ -910,7 +935,6 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
 
 static int ram_save_complete(QEMUFile *f, void *opaque)
 {
-    fclose(migration_log_file);
 
     qemu_mutex_lock_ramlist();
     migration_bitmap_sync();
@@ -934,6 +958,14 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     ram_control_after_iterate(f, RAM_CONTROL_FINISH);
     migration_end();
 
+    //CENDHU_START
+    fprintf(migration_log_file, "normal %lu zero %lu wrongdp %lu misses %lu sentFromCacheP %lu sendFromCacheT %lu ",
+            normal_pages_sent, zero_pages_sent, wrong_dirty_page, round_xbzrle_cache_miss, round_xbzrle_pages, round_xbzrle_bytes);
+    fflush(migration_log_file);
+    fclose(migration_log_file);
+
+    //CENDHU_END
+
     //ASHISH-START
     int no_longs = ram_pages / BITS_PER_LONG;
     int64_t no_cache_pages = migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE;
@@ -947,7 +979,7 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     strcat(qemu_name_dirty_bitmap, "_dirty_bitmap_log");
 
     FILE * dirty_bitmap_fd = fopen(qemu_name_dirty_bitmap, "w");
-    fprintf(dirty_bitmap_fd, "%" PRId64 " %u %" PRIu64 " %d %d\n", 
+    fprintf(dirty_bitmap_fd, "%" PRId64 " %lu %" PRIu64 " %d %d\n",
         no_cache_pages, TARGET_PAGE_SIZE, ram_pages, no_longs, BITS_PER_LONG);
 
     for (i = 1; i < pre_copy_round; i++) {
@@ -968,7 +1000,7 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     strcat(qemu_name_cache, "_cache_log");
 
     FILE * cache_log_file = fopen(qemu_name_cache, "w"); //file containing cache content bitmap after each iteration
-    fprintf(cache_log_file, "%" PRId64 " %u %" PRIu64 " %d %d\n", 
+    fprintf(cache_log_file, "%" PRId64 " %u %" PRIu64 " %d %d\n",
         no_cache_pages, TARGET_PAGE_SIZE, ram_pages, no_longs, BITS_PER_LONG);
 
     for (i = 1; i < pre_copy_round; i++) {
@@ -985,13 +1017,12 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     //print cache misses
     char qemu_name_cache_misses[200];
     qemu_name_cache_misses[0] = '\0';
-   
     strcat(qemu_name_cache_misses, qemu_name);
     strcat(qemu_name_cache_misses, "_cache_misses_log");
-    
+
     FILE * cache_misses_log_file = fopen(qemu_name_cache_misses, "w"); //file containing cache misses bitmap in each iteration
 
-    fprintf(cache_misses_log_file, "%" PRId64 " %u %" PRIu64 " %d %d\n", 
+    fprintf(cache_misses_log_file, "%" PRId64 " %u %" PRIu64 " %d %d\n",
         no_cache_pages, TARGET_PAGE_SIZE, ram_pages, no_longs, BITS_PER_LONG);
 
     for (i = 1; i < pre_copy_round; i++) {
@@ -1029,15 +1060,18 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
         qemu_mutex_unlock_iothread();
         round_active = false;
         remaining_size = ram_save_remaining() * TARGET_PAGE_SIZE;
+        //CENDHU_START
+        fprintf(migration_log_file, "%lu normal %lu zero %lu dirted %lu wrongdp %lu misses %lu sentCP %lu sendCT %lu ",
+                pre_copy_round, normal_pages_sent, zero_pages_sent, migration_dirty_pages, wrong_dirty_page, round_xbzrle_cache_miss,
+                round_xbzrle_pages, round_xbzrle_bytes);
+        fflush(migration_log_file);
+        //CENDHU_END
 
         //ASHISH-START
         if(migrate_use_xbzrle())  //store cache content bitmap if xbzrle enabled
             copy_cache_content();
         //ASHISH-END
-        
-        fprintf(migration_log_file, "%lu normal %lu zero %lu dirted %lu ",
-                pre_copy_round, normal_pages_sent, zero_pages_sent, migration_dirty_pages);
-        fflush(migration_log_file);
+
 
         pre_copy_round++;
 
@@ -1047,6 +1081,13 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
 
         zero_pages_sent = 0;
         normal_pages_sent = 0;
+        //CENDHU_START
+        round_xbzrle_cache_miss = 0;
+        round_xbzrle_pages = 0;
+        round_xbzrle_overflows = 0;
+        round_xbzrle_bytes = 0;
+        wrong_dirty_page = 0;
+        //CENDHU_END
     }
     if (!round_active) {
         round_active = true;
