@@ -34,3 +34,36 @@ Dirty bitmap : filename : <VM-name>_dirty_bitmap_log (in current directory)
 
     There will be #iterations dirty bitmap lines
 
+
+
+SCRIPTS:
+
+count_cache_misses.py: used with miss_bitmap.txt & cache_bitmap.txt 
+=====================
+    What it does? : If cache miss event occurred for a page 'n' during iteration i, then check
+    whether the page 'n' was present in any of the previous iterations' cache
+    content. For each iteration, print #misses, #yes, #no
+    "yes" mean the page was present in any of the previous iterations.
+
+    Usage : 
+    python count_cache_misses.py <miss_bitmap file>  <cache_bitmap file>
+
+    Sample Output:
+        iter# #misses #yes #no
+        1 0 0 0
+        2 49922 0 49922
+        3 34553 6425 28128
+        4 26369 8681 17688
+        5 25656 9999 15657
+        6 24807 10485 14322
+        7 35331 14239 21092
+        8 23740 11106 12634
+        9 18224 8759 9465
+        10 17173 7999 9174
+        11 18034 8656 9378
+        12 20428 9846 10582
+        13 18791 9627 9164
+        14 16238 8332 7906
+        15 26760 11917 14843
+        16 34135 12700 21435
+        17 668 211 457
