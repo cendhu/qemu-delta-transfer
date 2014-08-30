@@ -49,7 +49,7 @@ count_cache_misses.py: used with miss_bitmap.txt & cache_bitmap.txt
     "yes" mean the page was present in any of the previous iterations.
 
     Usage : 
-    python count_cache_misses.py <miss_bitmap file>  <cache_bitmap file>
+    python count_cache_misses.py <miss_bitmap file>  <cache_bitmap file> <dirty_bitmap file>
 
     Sample Output:
         iter# #misses #yes #no
