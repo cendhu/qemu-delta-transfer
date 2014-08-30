@@ -22,6 +22,9 @@ Cache misses : filename :  <VM-name>_cache_misses_log (in current directory)
 
     There will be #iterations cache misses bitmap lines.
 
+Cache Hits : filename : <VM-name>_cache_hits_log (in current directory)
+    Format of file: same as Cache misses. Bit is 1 corresponding to cache hit. Otherwise it is 0.
+
 
 Dirty bitmap : filename : <VM-name>_dirty_bitmap_log (in current directory)
     Format of file:

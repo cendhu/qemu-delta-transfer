@@ -312,6 +312,7 @@ static size_t save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
 
 //ASHISH-START
 unsigned long *cache_misses[30];
+unsigned long *cache_hits[30];
 //ASHISH-END
 
 /* This is the last block that we have visited serching for dirty pages
@@ -363,7 +364,13 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
     int encoded_len = 0, bytes_sent = -1;
     uint8_t *prev_cached_page;
 
+    
+
     if (!cache_is_cached(XBZRLE.cache, current_addr)) {
+        //ASHISH-START
+        set_bit(current_addr/TARGET_PAGE_SIZE, cache_misses[pre_copy_round]); //set the bit in bitmap corresponding to page for which miss occured
+        //ASHISH-END
+
         if (!last_stage) {
             if (cache_insert(XBZRLE.cache, current_addr, current_data) == -1) {
                 return -1;
@@ -375,6 +382,11 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
         //CENDHU_END
         return -1;
     }
+    //ASHISH-START
+    else{ //record cache hit
+        set_bit(current_addr/TARGET_PAGE_SIZE, cache_hits[pre_copy_round]); //set the bit in bitmap corresponding to page for which hit occured
+    }
+    //ASHISH-END
 
     prev_cached_page = get_cached_data(XBZRLE.cache, current_addr);
 
@@ -635,11 +647,6 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 /*xbzrle_cache_zero_page(current_addr);
             } */
             else if (!ram_bulk_stage && migrate_use_xbzrle()) {
-                //ASHISH-START
-                if (!cache_is_cached(XBZRLE.cache, current_addr)) {
-                    set_bit(current_addr/TARGET_PAGE_SIZE, cache_misses[pre_copy_round]); //set the bit in bitmap corresponding to page for which miss occured
-                }
-                //ASHISH-END
                 bytes_sent = save_xbzrle_page(f, p, current_addr, block,
                                               offset, cont, last_stage);
                 if (!last_stage) {
@@ -802,6 +809,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
     //ASHISH-START
     cache_misses[pre_copy_round] = bitmap_new(ram_pages); //this is to be done whenever pre_copy_round increments
+    cache_hits[pre_copy_round] = bitmap_new(ram_pages); //this is to be done whenever pre_copy_round increments
     //ASHISH-END
 
     dirty_rate_high_cnt = 0;
@@ -1036,6 +1044,30 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     for (i=1; i<=pre_copy_round; i++) {
         g_free(cache_misses[i]);
     }
+
+
+    //print cache hits
+    char qemu_name_cache_hits[200];
+    qemu_name_cache_hits[0] = '\0';
+    strcat(qemu_name_cache_hits, qemu_name);
+    strcat(qemu_name_cache_hits, "_cache_hits_log");
+
+    FILE * cache_hits_log_file = fopen(qemu_name_cache_hits, "w"); //file containing cache misses bitmap in each iteration
+
+    fprintf(cache_hits_log_file, "%" PRId64 " %u %" PRIu64 " %d %d\n",
+        no_cache_pages, TARGET_PAGE_SIZE, ram_pages, no_longs, BITS_PER_LONG);
+
+    for (i = 1; i < pre_copy_round; i++) {
+        for (j = 0; j < no_longs; j++) {
+            fprintf(cache_hits_log_file, "%lu ", cache_hits[i][j]);
+        }
+        fprintf(cache_hits_log_file, "\n");
+    }
+    fclose(cache_hits_log_file);
+
+    for (i=1; i<=pre_copy_round; i++) {
+        g_free(cache_hits[i]);
+    }
     //ASHISH-END
 
     qemu_mutex_unlock_ramlist();
@@ -1077,6 +1109,7 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
 
         //ASHISH-START
         cache_misses[pre_copy_round] = bitmap_new(ram_pages); //this is to be done whenever pre_copy_round increments
+        cache_hits[pre_copy_round] = bitmap_new(ram_pages); //this is to be done whenever pre_copy_round increments
         //ASHISH-END
 
         zero_pages_sent = 0;
