@@ -1,23 +1,13 @@
 import os
 import sys
 
-if(len(sys.argv) < 3):
-	print "Usage :\n  python count_cache_misses.py <cache_misses_bitmap file>  <cache_content_bitmap file>"
-	exit(0)
-
-miss_file = open(sys.argv[1])
-content_file = open(sys.argv[2])
-
-miss_bitmaps = []
-content_bitmaps = []
-
+#globals
 num_cache_pages = -1
 page_size = -1
 ram_pages = -1
 no_longs = -1
 BITS_PER_LONG = -1
 MASK = 0xffffffffffffffff  #with BITS_PER_LONG 1s. Default is 32 1's
-
 
 def bitwise_or(bitmap1, bitmap2):
 	retbitmap = map((lambda x,y : x | y), bitmap1, bitmap2)
@@ -57,9 +47,35 @@ def read_file(file, bitmaps):
 			ints = [(int(x) & MASK) for x in line.split()]
 			bitmaps.append(ints)
 
+def get_per_page_bit(bitmap): #get a list of size ram pages. Each element is 0 or 1 corresponding to bit
+	exploded = [bin(x)[2:].zfill(BITS_PER_LONG) for x in bitmap]
+	per_page_bit = [int(bit) for sub in exploded for bit in sub]
+	return per_page_bit
+
+
+def get_per_page_cumlative(bitmaps):
+	per_page_cumulative = get_per_page_bit(bitmaps[0])  #the per page bitmap for first iteration
+	for i in range(1, len(bitmaps)) :
+		per_page_cumulative = map(lambda x, y : x + y, per_page_cumulative, get_per_page_bit(bitmaps[i]))
+	return per_page_cumulative
+
+#========================= end of utils functions ================================
+
+if(len(sys.argv) < 3):
+	print "Usage :\n  python count_cache_misses.py <cache_misses_bitmap file>  <cache_content_bitmap file> <dirty_bitmap file>"
+	exit(0)
+
+miss_file = open(sys.argv[1])
+content_file = open(sys.argv[2])
+dirty_file = open(sys.argv[3])
+
+miss_bitmaps = []
+content_bitmaps = []
+dirty_bitmaps = []
+
 read_file(miss_file, miss_bitmaps)
 read_file(content_file, content_bitmaps)
-
+read_file(dirty_file, dirty_bitmaps)
 
 #print "header", num_cache_pages, page_size, ram_pages, no_longs, BITS_PER_LONG
 
@@ -86,8 +102,31 @@ for i in range(len(miss_bitmaps)):
 	num_no = total_misses - num_yes
 	print (i+1), total_misses, num_yes, num_no 
 
+#find number of times each page is dirtied, missed
+
+cumlative_per_page_dirty = get_per_page_cumlative(dirty_bitmaps)
+cumlative_per_page_misses = get_per_page_cumlative(miss_bitmaps)
+
+print "Cumulative per page dirty count"
+for count in cumlative_per_page_dirty:
+	sys.stdout.write(str(count) + " ")
+sys.stdout.write("\n\n")
+
+print "Cumulative per page misses count"
+for count in cumlative_per_page_misses:
+	sys.stdout.write(str(count) + " ")
+sys.stdout.write("\n")
 
 ############  Rough ###############
+
+print get_per_page_bit([3,4,7])
+print map(lambda x,y : x+y, [2,3,1], [3,5,3])
+
+
+BITS_PER_LONG = 6
+x = [[2,3], [4,5]]
+print get_per_page_cumlative(x)
+
 
 # a = [1 ,3 ,5]
 # b = [3, 4, 11]
