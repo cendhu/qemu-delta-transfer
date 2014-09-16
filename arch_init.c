@@ -330,7 +330,50 @@ static size_t save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
 //ASHISH-START
 unsigned long *cache_misses[30];
 unsigned long *cache_hits[30];
+unsigned int num_cache_pages;
 unsigned long *filled_cache_slots; // bitmap to store whether cache slot is filled
+unsigned long *cache_page_hits; // store no of hits for a cache page
+                                // 2 bits per cache page - 00 : insertion; 01 : first hit; 10 : second hit and rest
+
+static void set_bit_value(int val, long nr, unsigned long *addr){ //val = {0, 1} only
+    if(val == 0) clear_bit(nr, addr);
+    else set_bit(nr, addr);
+}
+
+static void set_double_bit(int val, long pos, unsigned long *addr){
+    int bits[2];
+    switch (val){
+        case 0:
+            bits[0] = 0;
+            bits[1] = 0;
+            break;
+        case 1:
+            bits[0] = 0;
+            bits[1] = 1;
+            break;
+        default: //for val = 2 or more
+            bits[0] = 1;
+            bits[1] = 0;
+            break;
+    }
+    long nr = pos * 2;
+    set_bit_value(bits[0], nr, addr);
+    set_bit_value(bits[1], nr+1, addr);
+}
+
+static int get_double_bit(long pos, unsigned long *addr){ //get int value correspondint to the two bits
+    long nr = pos * 2;
+    int bits[2];
+    bits[0] = test_bit(nr, addr);
+    bits[1] = test_bit(nr+1, addr);
+
+    if(bits[0] == 0 && bits[1] == 0)
+        return 0;
+    else if(bits[0] == 0 && bits[1] == 1)
+        return 1;
+    else
+        return 2;
+}
 //ASHISH-END
 
 /* This is the last block that we have visited serching for dirty pages
@@ -388,17 +431,36 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
     int encoded_len = 0, bytes_sent = -1;
     uint8_t *prev_cached_page;
 
-    
-
+    //ASHISH-START
+    size_t pos = xbzrle_get_cache_pos(current_addr); //page index in cache
+    //ASHISH-END
     if (!cache_is_cached(XBZRLE.cache, current_addr)) {
         //ASHISH-START
         set_bit(current_addr/TARGET_PAGE_SIZE, cache_misses[pre_copy_round]); //set the bit in bitmap corresponding to page for which miss occured
         //ASHISH-END
 
         if (!last_stage) {
-            if (cache_insert(XBZRLE.cache, current_addr, current_data) == -1) {
-                return -1;
+            //ASHISH-START
+            //here we're trying to insert. But we will replace only if
+            //- either cache page is not yet occupied
+            //- or if occupied, hit count for stored page < 2
+
+            int old_hit_count = get_double_bit(pos, cache_page_hits);
+            //if(old_hit_count == 1) printf("O");
+            if((!test_bit(pos, filled_cache_slots)) || (old_hit_count < 2)){
+                //printf("R");
+                if (cache_insert(XBZRLE.cache, current_addr, current_data) == -1) {
+                    return -1;
+                }
+
+                set_bit(pos, filled_cache_slots);
+                set_double_bit(0, pos, cache_page_hits);
             }
+            else{
+                //printf("C");
+                return -1; //this is the same case when insertion failed as in above if clause
+            }
+            //ASHISH-END
         }
         acct_info.xbzrle_cache_miss++;
         //CENDHU_START
@@ -408,7 +470,12 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
     }
     //ASHISH-START
     else{ //record cache hit
+        //printf("+");
         set_bit(current_addr/TARGET_PAGE_SIZE, cache_hits[pre_copy_round]); //set the bit in bitmap corresponding to page for which hit occured
+
+        int count = get_double_bit(pos, cache_page_hits); //get current hit count
+        count++;
+        set_double_bit(count, pos, cache_page_hits); //store incremented hit count
     }
     //ASHISH-END
 
@@ -502,6 +569,7 @@ ram_addr_t migration_bitmap_find_and_reset_dirty(MemoryRegion *mr,
 }
 
 //ASHISH-START
+
 static inline void skip_bitmap_set_dirty(ram_addr_t addr)
 {
     bool ret;
@@ -758,9 +826,11 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         size_t pos = xbzrle_get_cache_pos(current_addr);
                         if(!test_bit(pos, filled_cache_slots)){ // if corresponding slot in cache is free 
                                                                 // only then insert into cache. Don't replace
-                            cache_insert(XBZRLE.cache, current_addr, p);
-                            pages_saved_to_cache++;
-                            set_bit(pos, filled_cache_slots);
+                            if(cache_insert(XBZRLE.cache, current_addr, p) != -1){
+                                pages_saved_to_cache++;
+                                set_bit(pos, filled_cache_slots);
+                                set_double_bit(0, pos, cache_page_hits);
+                            }
                             //printf("S");
                         }
                         /*else{
@@ -909,8 +979,14 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     migration_bitmap = bitmap_new(ram_pages);
     //ASHISH-START
     skip_bitmap = bitmap_new(ram_pages);
-    filled_cache_slots = bitmap_new(migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE);
-    bitmap_clear(filled_cache_slots, 0, migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE);
+
+    num_cache_pages = migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE;
+    filled_cache_slots = bitmap_new(num_cache_pages);
+    bitmap_clear(filled_cache_slots, 0, num_cache_pages);
+    
+    cache_page_hits = bitmap_new(num_cache_pages * 2);
+    bitmap_clear(cache_page_hits, 0, num_cache_pages * 2);
+
     pages_saved_to_cache = 0;
     //ASHISH-END
     bitmap_set(migration_bitmap, 0, ram_pages);
@@ -1219,7 +1295,6 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
         bitmap_clear(skip_bitmap, 0, ram_pages);
         printf("round %" PRIu64" : saved to cache using skip_bitmap %" PRIu64 "\n", pre_copy_round, pages_saved_to_cache);
 
-        bitmap_clear(filled_cache_slots, 0, migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE);
         //ASHISH-END
         qemu_mutex_lock_iothread();
         migration_bitmap_sync();
