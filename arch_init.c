@@ -1293,7 +1293,7 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
     if(!remaining_size) {
         //ASHISH-START
         bitmap_clear(skip_bitmap, 0, ram_pages);
-        printf("round %" PRIu64" : saved to cache using skip_bitmap %" PRIu64 "\n", pre_copy_round, pages_saved_to_cache);
+        //printf("round %" PRIu64" : saved to cache using skip_bitmap %" PRIu64 "\n", pre_copy_round, pages_saved_to_cache);
 
         //ASHISH-END
         qemu_mutex_lock_iothread();
