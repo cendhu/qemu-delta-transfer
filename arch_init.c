@@ -330,14 +330,18 @@ static size_t save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
 //ASHISH-START
 unsigned long *cache_misses[30];
 unsigned long *cache_hits[30];
-unsigned int num_cache_pages;
+unsigned long num_cache_pages;
 unsigned long *filled_cache_slots; // bitmap to store whether cache slot is filled
 unsigned long *cache_page_hits; // store no of hits for a cache page
                                 // 2 bits per cache page - 00 : insertion; 01 : first hit; 10 : second hit and rest
 
 static void set_bit_value(int val, long nr, unsigned long *addr){ //val = {0, 1} only
-    if(val == 0) clear_bit(nr, addr);
-    else set_bit(nr, addr);
+    if(val == 0){
+        clear_bit(nr, addr);
+    }
+    else {
+        set_bit(nr, addr);
+    }
 }
 
 static void set_double_bit(int val, long pos, unsigned long *addr){
@@ -367,9 +371,9 @@ static int get_double_bit(long pos, unsigned long *addr){ //get int value corres
     bits[0] = test_bit(nr, addr);
     bits[1] = test_bit(nr+1, addr);
 
-    if(bits[0] == 0 && bits[1] == 0)
+    if((!bits[0]) && (!bits[1])) // 0 0
         return 0;
-    else if(bits[0] == 0 && bits[1] == 1)
+    else if((!bits[0]) && (bits[1])) //0 1
         return 1;
     else
         return 2;
@@ -444,8 +448,11 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
             //here we're trying to insert. But we will replace only if
             //- either cache page is not yet occupied
             //- or if occupied, hit count for stored page < 2
-
-            int old_hit_count = get_double_bit(pos, cache_page_hits);
+            if (cache_insert(XBZRLE.cache, current_addr, current_data) == -1) {
+                return -1;
+            }
+            /*int old_hit_count = get_double_bit(pos, cache_page_hits);
+            
             //if(old_hit_count == 1) printf("O");
             if((!test_bit(pos, filled_cache_slots)) || (old_hit_count < 2)){
                 //printf("R");
@@ -459,7 +466,7 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
             else{
                 //printf("C");
                 return -1; //this is the same case when insertion failed as in above if clause
-            }
+            }*/
             //ASHISH-END
         }
         acct_info.xbzrle_cache_miss++;
@@ -473,9 +480,9 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
         //printf("+");
         set_bit(current_addr/TARGET_PAGE_SIZE, cache_hits[pre_copy_round]); //set the bit in bitmap corresponding to page for which hit occured
 
-        int count = get_double_bit(pos, cache_page_hits); //get current hit count
+        /*int count = get_double_bit(pos, cache_page_hits); //get current hit count
         count++;
-        set_double_bit(count, pos, cache_page_hits); //store incremented hit count
+        set_double_bit(count, pos, cache_page_hits); //store incremented hit count*/
     }
     //ASHISH-END
 
