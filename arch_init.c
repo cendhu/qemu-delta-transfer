@@ -60,15 +60,6 @@
     do { } while (0)
 #endif
 
-#define CENDHU_DEBUG
-#ifdef CENDHU_DEBUG
-#define DPRINTF_C(fmt, ...) \
-    do { printf("arch_init.c: " fmt, ## __VA_ARGS__); } while (0)
-#else
-#define DPRINTF_C(fmt, ...) \
-    do { } while (0)
-#endif
-
 #ifdef TARGET_SPARC
 int graphic_width = 1024;
 int graphic_height = 768;
@@ -234,9 +225,10 @@ int64_t xbzrle_cache_resize(int64_t new_size)
 }
 
 //ASHISH-START
-size_t xbzrle_get_cache_pos(uint64_t address){
-    int64_t max_num_items = migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE;
-    size_t pos = (address / TARGET_PAGE_SIZE) & (max_num_items - 1);
+unsigned int num_cache_pages; // number of pages in cache. Initialised in ram_save_setup
+
+size_t xbzrle_get_cache_pos(uint64_t address){ // get page number in cache where address corresponds to
+    size_t pos = (address / TARGET_PAGE_SIZE) & (num_cache_pages - 1);
     return pos;
 }
 //ASHISH-END
@@ -358,9 +350,7 @@ static bool ram_bulk_stage;
 
 //ASHISH-START
 static unsigned long *skip_bitmap;
-static uint64_t pages_skipped;
 static uint64_t pages_saved_to_cache;
-static uint64_t total_pages_skipped;
 //ASHISH-END
 /* Update the xbzrle cache to reflect a page that's been sent as all 0.
  * The important thing is that a stale (not-yet-0'd) page be replaced
@@ -472,31 +462,16 @@ ram_addr_t migration_bitmap_find_and_reset_dirty(MemoryRegion *mr,
     unsigned long next;
 
     //ASHISH-START
-    //while (true) {
+    if (ram_bulk_stage && nr > base) {
+        next = nr + 1;
+    } else {
+        next = find_next_bit(migration_bitmap, size, nr);
+    }
 
-        if (ram_bulk_stage && nr > base) {
-            next = nr + 1;
-        } else {
-            next = find_next_bit(migration_bitmap, size, nr);
-        }
-
-        if (next < size) {
-            clear_bit(next, migration_bitmap);
-            migration_dirty_pages--;
-            /*
-            if (!test_bit(next, skip_bitmap)) {
-                break;
-            } else {
-                pages_skipped++;
-                nr++;
-                continue;
-            }*/
-        }
-        /* else {
-            break;
-        }*/
-
-    //}
+    if (next < size) {
+        clear_bit(next, migration_bitmap);
+        migration_dirty_pages--;
+    }
     //ASHISH-END
     return (next - base) << TARGET_PAGE_BITS;
 }
@@ -909,8 +884,10 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     migration_bitmap = bitmap_new(ram_pages);
     //ASHISH-START
     skip_bitmap = bitmap_new(ram_pages);
-    filled_cache_slots = bitmap_new(migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE);
-    bitmap_clear(filled_cache_slots, 0, migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE);
+    num_cache_pages = pow2floor(migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE);
+
+    filled_cache_slots = bitmap_new(num_cache_pages);
+    bitmap_clear(filled_cache_slots, 0, num_cache_pages);
     pages_saved_to_cache = 0;
     //ASHISH-END
     bitmap_set(migration_bitmap, 0, ram_pages);
@@ -982,14 +959,6 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
     return 0;
 }
-//ASHISH-START
-static __inline__ unsigned long rdtsc(void)
-{
-    unsigned long x;
-    __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
-    return x;
-}
-//ASHISH-END
 
 static int ram_save_iterate(QEMUFile *f, void *opaque)
 {
@@ -1014,10 +983,7 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
         //ASHISH-START
         if (!(normal_pages_sent % 1024)) {
             qemu_mutex_lock_iothread();
-            //unsigned long cycles = rdtsc();
             skip_bitmap_sync();
-            //cycles = rdtsc() - cycles;
-            //DPRINTF_C("%lu ", cycles);
             qemu_mutex_unlock_iothread();
         }
         //ASHISH-END
@@ -1217,9 +1183,7 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
     if(!remaining_size) {
         //ASHISH-START
         bitmap_clear(skip_bitmap, 0, ram_pages);
-        printf("round %" PRIu64" : saved to cache using skip_bitmap %" PRIu64 "\n", pre_copy_round, pages_saved_to_cache);
-
-        bitmap_clear(filled_cache_slots, 0, migrate_xbzrle_cache_size() / TARGET_PAGE_SIZE);
+        printf("round %" PRIu64" : saved to cache using skip_bitmap (meaningful only for round 1) %" PRIu64 "\n", pre_copy_round, pages_saved_to_cache);
         //ASHISH-END
         qemu_mutex_lock_iothread();
         migration_bitmap_sync();
@@ -1256,11 +1220,6 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
         round_xbzrle_bytes = 0;
         wrong_dirty_page = 0;
         //CENDHU_END
-
-        //ASHISH-START
-        pages_skipped = 0;
-        pages_saved_to_cache = 0;
-        //ASHISH-END
     }
     if (!round_active) {
         round_active = true;
