@@ -725,9 +725,13 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         size_t pos = cache_get_cache_pos(XBZRLE.cache, current_addr);
                         if(!test_bit(pos, filled_cache_slots)){ // if corresponding slot in cache is free 
                                                                 // only then insert into cache. Don't replace
-                            cache_insert(XBZRLE.cache, current_addr, p);
-                            pages_saved_to_cache++;
-                            set_bit(pos, filled_cache_slots);
+                            if(cache_insert(XBZRLE.cache, current_addr, p) != -1){
+                                pages_saved_to_cache++;
+                                set_bit(pos, filled_cache_slots);
+
+                                p = get_cached_data(XBZRLE.cache, current_addr);
+                                send_async = false;
+                            }
                             //printf("S");
                         }
                         /*else{
