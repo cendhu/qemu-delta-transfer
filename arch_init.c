@@ -316,7 +316,9 @@ unsigned long *cache_hits[30];
 unsigned long num_cache_pages;
 unsigned long *filled_cache_slots; // bitmap to store whether cache slot is filled
 unsigned long *cache_page_hits; // store no of hits for a cache page
-                                // 2 bits per cache page - 00 : insertion; 01 : first hit; 10 : second hit and rest
+                                // 2 bits per cache page - 
+                                // 00 : insertion; 01 : 1 hit; 10 : 2 hits; 11 : 3+ hits
+bool round_one_over;
 
 static void set_bit_value(int val, long nr, unsigned long *addr){ //val = {0, 1} only
     if(val == 0){
@@ -338,9 +340,12 @@ static void set_double_bit(int val, long pos, unsigned long *addr){
             bits[0] = 0;
             bits[1] = 1;
             break;
-        default: //for val = 2 or more
+        case 2:
             bits[0] = 1;
             bits[1] = 0;
+        default: //for val = 3 or more
+            bits[0] = 1;
+            bits[1] = 1;
             break;
     }
     long nr = pos * 2;
@@ -351,17 +356,19 @@ static void set_double_bit(int val, long pos, unsigned long *addr){
 static int get_double_bit(long pos, unsigned long *addr){ //get int value correspondint to the two bits
     long nr = pos * 2;
     int bits[2];
-    bits[0] = test_bit(nr, addr);
-    bits[1] = test_bit(nr+1, addr);
+    bits[0] = (bool) test_bit(nr, addr);
+    bits[1] = (bool) test_bit(nr+1, addr);
 
-    if((!bits[0]) && (!bits[1])) // 0 0
+    if(bits[0] == 0 && bits[1] == 0) // 0 0
         return 0;
-    else if((!bits[0]) && (bits[1])) //0 1
+    else if(bits[0] == 0 && bits[1] == 1) //0 1
         return 1;
-    else
+    else if(bits[0] == 1 && bits[1] == 0) //1 0
         return 2;
+    else
+        return 3;
 }
-bool round_one_over;
+
 //ASHISH-END
 
 /* This is the last block that we have visited serching for dirty pages
@@ -410,6 +417,13 @@ static void xbzrle_cache_zero_page(ram_addr_t current_addr)
 
 #define ENCODING_FLAG_XBZRLE 0x1
 
+/*
+    returns
+    -1 : cache miss or xbzrle overflow. But cache insert succesful
+    -2 : cache insert was unsuccesful. Hence dont rely on cache content to send data
+     0 : page not modified
+    >0 : page found in cache and no overflow. equals no of bytes sent  
+*/
 static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
                             ram_addr_t current_addr, RAMBlock *block,
                             ram_addr_t offset, int cont, bool last_stage)
@@ -429,26 +443,23 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
             //ASHISH-START
             //here we're trying to insert. But we will replace only if
             //- either cache page is not yet occupied
-            //- or if occupied, hit count for stored page < 2
-            if (cache_insert(XBZRLE.cache, current_addr, current_data) == -1) {
-                return -1;
-            }
-            /*int old_hit_count = get_double_bit(pos, cache_page_hits);
-            
+            //- or if occupied, hit count for stored page < 1 (i.e it was never hit after insertion)
+            int old_hit_count = get_double_bit(pos, cache_page_hits);
+
             //if(old_hit_count == 1) printf("O");
-            if((!test_bit(pos, filled_cache_slots)) || (old_hit_count < 2)){
-                //printf("R");
+            if((!test_bit(pos, filled_cache_slots)) || (old_hit_count < 1)){
+                // printf("R");
                 if (cache_insert(XBZRLE.cache, current_addr, current_data) == -1) {
-                    return -1;
+                    return -2;
                 }
 
                 set_bit(pos, filled_cache_slots);
                 set_double_bit(0, pos, cache_page_hits);
             }
             else{
-                //printf("C");
-                return -1; //this is the same case when insertion failed as in above if clause
-            }*/
+                // printf("C");
+                return -2; //this is the same case when can not be replaced
+            }
             //ASHISH-END
         }
         acct_info.xbzrle_cache_miss++;
@@ -459,12 +470,12 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
     }
     //ASHISH-START
     else{ //record cache hit
-        //printf("+");
+        // printf("+");
         set_bit(current_addr/TARGET_PAGE_SIZE, cache_hits[pre_copy_round]); //set the bit in bitmap corresponding to page for which hit occured
 
-        /*int count = get_double_bit(pos, cache_page_hits); //get current hit count
+        int count = get_double_bit(pos, cache_page_hits); //get current hit count
         count++;
-        set_double_bit(count, pos, cache_page_hits); //store incremented hit count*/
+        set_double_bit(count, pos, cache_page_hits); //store incremented hit count
     }
     //ASHISH-END
 
@@ -781,7 +792,9 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                      * even if the page wasn't xbzrle compressed, so that
                      * it's right next time.
                      */
-                    p = get_cached_data(XBZRLE.cache, current_addr);
+                    if(bytes_sent == -1){ //i.e if page not in cache and page inserted
+                        p = get_cached_data(XBZRLE.cache, current_addr);
+                    }
 
                     /* Can't send this cached data async, since the cache page
                      * might get updated before it gets to the wire
@@ -791,27 +804,23 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
             }
 
             /* XBZRLE overflow or normal page */
-            if (bytes_sent == -1) {
+            if (bytes_sent == -1 || bytes_sent == -2) {
                 //ASHISH-START
                 if(ram_bulk_stage && migrate_use_xbzrle()) { // if bulk stage and xbzrle enabled, then 
                                                              // insert the page into cache if set in skip bitmap
                     if (test_bit(current_addr >> TARGET_PAGE_BITS, skip_bitmap)) {
-                        //printf("S");
                         size_t pos = cache_get_cache_pos(XBZRLE.cache, current_addr);
                         if(!test_bit(pos, filled_cache_slots)){ // if corresponding slot in cache is free 
                                                                 // only then insert into cache. Don't replace
                             if(cache_insert(XBZRLE.cache, current_addr, p) != -1){
+                                // printf("S");
                                 pages_saved_to_cache++;
                                 set_bit(pos, filled_cache_slots);
                                 set_double_bit(0, pos, cache_page_hits);
                                 p = get_cached_data(XBZRLE.cache, current_addr);
                                 send_async = false;
                             }
-                            //printf("S");
                         }
-                        /*else{
-                            printf("F");
-                        }*/
                     }
                 }
                 //ASHISH-END
