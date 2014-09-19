@@ -112,7 +112,7 @@ void cache_fini(PageCache *cache)
     cache->page_cache = NULL;
 }
 
-static size_t cache_get_cache_pos(const PageCache *cache,
+size_t cache_get_cache_pos(const PageCache *cache,
                                   uint64_t address)
 {
     size_t pos;
@@ -120,6 +120,10 @@ static size_t cache_get_cache_pos(const PageCache *cache,
     g_assert(cache->max_num_items);
     pos = (address / cache->page_size) & (cache->max_num_items - 1);
     return pos;
+}
+
+int64_t cache_get_cache_max_size(const PageCache *cache){
+    return cache->max_num_items;
 }
 
 bool cache_is_cached(const PageCache *cache, uint64_t addr)
