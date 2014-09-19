@@ -418,7 +418,7 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
     uint8_t *prev_cached_page;
 
     //ASHISH-START
-    size_t pos = cache_get_cache_pos(current_addr); //page index in cache
+    size_t pos = cache_get_cache_pos(XBZRLE.cache, current_addr); //page index in cache
     //ASHISH-END
     if (!cache_is_cached(XBZRLE.cache, current_addr)) {
         //ASHISH-START
