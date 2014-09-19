@@ -804,6 +804,8 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                                 pages_saved_to_cache++;
                                 set_bit(pos, filled_cache_slots);
                                 set_double_bit(0, pos, cache_page_hits);
+                                p = get_cached_data(XBZRLE.cache, current_addr);
+                                send_async = false;
                             }
                             //printf("S");
                         }
