@@ -82,4 +82,9 @@ int64_t cache_resize(PageCache *cache, int64_t num_pages);
 /* store cache content in form of bitmap */
 void cache_copy_bitmap(PageCache * cache, unsigned long *cache_content_bitmap);
 
+size_t cache_get_cache_pos(const PageCache *cache,
+                                  uint64_t address);
+
+int64_t cache_get_cache_max_size(const PageCache *cache);
+
 #endif
