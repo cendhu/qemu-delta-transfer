@@ -118,7 +118,17 @@ const uint32_t arch_type = QEMU_ARCH;
 static bool mig_throttle_on;
 static int dirty_rate_high_cnt;
 static void check_guest_throttling(void);
-
+//Anand's Changes
+#define block_capacity 4000
+static uint64_t last_block_occupancy;
+static uint64_t num_blocks;
+static struct block_information {
+  uint64_t dirty_count;
+  uint64_t index;
+};
+typedef struct block_information block_information;
+static block_information *block_dirty_counts;
+//Anand End
 /***********************************************************/
 /* ram save/restore */
 
@@ -734,6 +744,144 @@ static void counting_sort(){
 }
 //ASHISH-END
 
+//ANAND-START
+static void sort_array(int low, int high) {
+  int mid;
+  if(low < high) {
+    mid = (low + high)/2;
+    sort_array(low, mid);
+    sort_array(mid+1, high);
+    merge_array(low, mid, high);
+  }
+}
+
+void merge_array(int low, int mid, int high) {
+  int i,m,k,l;
+  block_information *temp = calloc(num_blocks, sizeof(block_information));
+  int b;
+
+  l = low;
+  i = low;
+  m = mid+1;
+  while((l <= mid) && (m <= high)) {
+    if(block_dirty_counts[l].dirty_count <= block_dirty_counts[m].dirty_count) {
+      block_information inf;
+      inf.index = block_dirty_counts[l].index;
+      inf.dirty_count = block_dirty_counts[l].dirty_count;
+      temp[i] = inf;
+      l++;
+    }
+    else {
+      //temp[i] = block_dirty_counts[m];
+      block_information inf;
+      inf.index = block_dirty_counts[m].index;
+      inf.dirty_count = block_dirty_counts[m].dirty_count;
+      temp[i] = inf;
+      m++;
+    }
+    i++;
+  }
+
+  if(l > mid) {
+    for(k=m; k<=high; k++) {
+      //temp[i] = block_dirty_counts[k];
+      block_information inf;
+      inf.index = block_dirty_counts[k].index;
+      inf.dirty_count = block_dirty_counts[k].dirty_count;
+      temp[i] = inf;
+      i++;
+    }
+  }
+
+  else {
+    for(k=l; k<=mid; k++) {
+      //temp[i] = block_dirty_counts[k];
+      block_information inf;
+      inf.index = block_dirty_counts[k].index;
+      inf.dirty_count = block_dirty_counts[k].dirty_count;
+      temp[i] = inf;
+      i++;
+    }
+  }
+
+  for(k=low; k<=high; k++) {
+    block_dirty_counts[k].index = temp[k].index;
+    block_dirty_counts[k].dirty_count = temp[k].dirty_count; 
+    //block_dirty_counts[k] = temp[k];
+    //printf("temp : %" PRId64 ", %" PRId64 "\n",temp[k].index,temp[k].dirty_count);
+  }
+}
+
+
+/*
+*/
+static void block_sort() {
+ printf("block_sort()\n");
+ uint64_t index;
+ for(index = 0; index < num_blocks; index++) {
+  uint64_t page_num;
+  if(index != (num_blocks-1)) {
+    //printf("block_sort() 1 \n");
+    uint64_t round_length = index*block_capacity;
+    for(page_num = round_length; page_num < (round_length + block_capacity); page_num++) {
+      if(test_bit(page_num, migration_bitmap)) {
+        block_information bi = block_dirty_counts[index];
+        uint64_t idx = bi.index;
+        bi.dirty_count = bi.dirty_count + 1;
+        bi.index = idx;
+        block_dirty_counts[index] = bi;
+        //printf("%" PRId64 ", %" PRId64 "\n",block_dirty_counts[index].index,block_dirty_counts[index].dirty_count);
+      }
+    }
+  }
+  else {
+    //printf("block_sort() 2 \n");
+    uint64_t round_length = index*last_block_occupancy;
+    for(page_num = round_length; page_num < (round_length + last_block_occupancy); page_num++) {
+      if(test_bit(page_num, migration_bitmap)) {
+        block_information bi = block_dirty_counts[index];
+        uint64_t idx = bi.index;
+        bi.dirty_count = bi.dirty_count + 1;
+        bi.index = idx;
+        block_dirty_counts[index] = bi;
+      }
+    }
+  }
+ }
+ uint64_t q;
+ sort_array(0,num_blocks-1);
+ //Change transfer_order as per the above sorted blocks.
+ /*
+ for(q=0; q<num_blocks; q++) {
+  printf("dirty_count : %" PRId64 ", index : %" PRId64 "\n",block_dirty_counts[q].dirty_count,block_dirty_counts[q].index);
+ }
+ */
+ uint64_t m;
+ uint64_t t_index = 0;
+ for(m=0; m<num_blocks; m++) {
+  uint64_t cur_block = block_dirty_counts[m].index;
+  uint64_t p;
+  if(cur_block != (num_blocks-1)) {
+    for(p = cur_block*block_capacity; p<(cur_block+1)*block_capacity; p++) {
+      transfer_order[t_index] = p;
+      t_index++;
+    }
+  }
+  else {
+    for(p = cur_block*block_capacity; p<(cur_block*block_capacity + last_block_occupancy); p++) {
+      transfer_order[t_index] = p;
+      t_index++;
+      }
+    }
+  }
+}
+
+static uint64_t *get_pages_for_block(uint64_t block_num) {
+  uint64_t *temp;
+  temp = calloc(block_capacity,sizeof(uint64_t));
+
+}
+//Anand END
 /*
  * ram_save_block: Writes a page of memory to the stream f
  *
@@ -1162,7 +1310,8 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
     dirty_rate_high_cnt = 0;
 
-    //ASHISH-START
+    
+    //ANAND-START
     transfer_order = calloc(ram_pages, sizeof(uint64_t));
     {
         //set initial tranfer order as sequence from 1 to end
@@ -1172,9 +1321,20 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
             transfer_order[i] = i;
         }
     }
+    num_blocks = ram_pages/block_capacity + 1;
+    last_block_occupancy = ram_pages - ((num_blocks-1) * block_capacity);
+    block_dirty_counts = calloc(num_blocks, sizeof(block_information));
+    uint64_t d;
+    for(d=0; d<num_blocks; d++) {
+      block_dirty_counts[d].index = d;
+      block_dirty_counts[d].dirty_count = 0;
+    }
     dirty_count_map = calloc(ram_pages, sizeof(unsigned char)); //calloc initializes each entry to 0
+    //all_pages = calloc(ram_pages, sizeof(uint64_t));
+    //block_redef_info  = calloc(num_blocks, sizeof(block_redef*));
+    //page_to_block_mapping();
+    //ANAND-END
 
-    //ASHISH-END
 
     if (migrate_use_xbzrle()) {
         qemu_mutex_lock_iothread();
@@ -1488,10 +1648,10 @@ static int64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
         migration_bitmap_sync();
         copy_migration_bitmap();
 
-        //ASHISH-START
+        //ANAND-START
         update_dirty_count_map();
-        counting_sort(); //use counting sort algo to update transfer_order for next round
-        //ASHISH-END
+        block_sort(); //use counting sort algo to update transfer_order for next round
+        //ANAND-END
 
         qemu_mutex_unlock_iothread();
         round_active = false;
