@@ -25,6 +25,7 @@
 #include "qemu-common.h"
 #include "migration/page_cache.h"
 #include "qemu/bitops.h"
+#include "hashing.h"
 
 #ifdef DEBUG_CACHE
 #define DPRINTF(fmt, ...) \
@@ -155,7 +156,7 @@ uint8_t *get_cached_data(const PageCache *cache, uint64_t addr)
     return cache_get_by_addr(cache, addr)->it_data;
 }
 
-int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata)
+int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_table_t ht)
 {
 
     CacheItem *it = NULL;
@@ -165,7 +166,11 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata)
 
     /* actual update of entry */
     it = cache_get_by_addr(cache, addr);
-
+    if(it->it_addr != -1) {
+      unsigned char sha256sum[32];
+      hash(it->it_data, cache->page_size, sha256sum);
+      delete_entry(ht.table, ht.size, sha256sum);
+    }
     /* allocate page */
     if (!it->it_data) {
         it->it_data = g_try_malloc(cache->page_size);
@@ -177,7 +182,11 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata)
     }
 
     memcpy(it->it_data, pdata, cache->page_size);
-
+    unsigned char sha256sum[32];
+    hash(it->it_data, cache->page_size, sha256sum);
+    unsigned int index = get_index(sha256sum, ht.size);
+    insert_entry(ht.table, ht.size, index, sha256sum, addr >> TARGET_PAGE_BITS); 
+    
     it->it_age = ++cache->max_item_age;
     it->it_addr = addr;
 

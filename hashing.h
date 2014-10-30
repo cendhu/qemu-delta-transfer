@@ -8,7 +8,7 @@
 #define HASHSIZE 32
 
 #define PAGE_BITS 8 //within int bounds < 32
-#define HASH_INDEX_MASK ((unsigned int) (1 << PAGE_BITS) - 1)
+//#define HASH_INDEX_MASK ((unsigned int) (1 << PAGE_BITS) - 1)
 
 void hash(unsigned char * buffer, int len, unsigned char * sha256sum){
     sha256_context ctx;
@@ -17,7 +17,7 @@ void hash(unsigned char * buffer, int len, unsigned char * sha256sum){
     sha256_finish(&ctx, sha256sum);
 }
 
-unsigned int getindex(unsigned char * sha256sum){
+unsigned int getindex(unsigned char * sha256sum, int table_size){
 
     int j;
     for( j = 0; j < 32; j++ )
@@ -36,7 +36,7 @@ unsigned int getindex(unsigned char * sha256sum){
     lastint = (sha256sum[28] << 24) + (sha256sum[29] << 16) + (sha256sum[30] << 8) + (sha256sum[31]); 
 
     unsigned masked_index;
-    masked_index = lastint & HASH_INDEX_MASK;
+    masked_index = lastint % table_size;
 
     return masked_index;
 }
@@ -57,6 +57,13 @@ struct table_entry {
 };
 
 typedef struct table_entry table_entry;
+
+struct hash_table_t {
+  table_entry *table;
+  uint32_t size;
+};
+
+typedef struct hash_table_t hash_table_t;
 
 table_entry* create_table(uint32_t size) {
   table_entry* hash_table = (table_entry*) calloc(size, sizeof(table_entry));

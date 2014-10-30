@@ -51,6 +51,7 @@
 #include "exec/ram_addr.h"
 #include "hw/acpi/acpi.h"
 #include "qemu/host-utils.h"
+#include "hashing.h"
 
 #ifdef DEBUG_ARCH_INIT
 #define DPRINTF(fmt, ...) \
@@ -120,6 +121,9 @@ static void check_guest_throttling(void);
 #define RAM_SAVE_FLAG_EOS      0x10
 #define RAM_SAVE_FLAG_CONTINUE 0x20
 #define RAM_SAVE_FLAG_XBZRLE   0x40
+#define DEDUP_FLAG 0x100
+#define FULL_DEDUP_FLAG 0x01
+#define SUB_DEDUP_FLAG 0x02
 /* 0x80 is reserved in migration.h start with 0x100 next */
 
 static struct defconfig_file {
@@ -315,6 +319,8 @@ unsigned long *cache_misses[30];
 unsigned long *cache_hits[30];
 unsigned long *filled_cache_slots; // bitmap to store whether cache slot is filled
 bool round_one_over;
+hash_table_t full_page_hash_table; 
+char* dedup_page_buffer;
 //ASHISH-END
 
 /* This is the last block that we have visited serching for dirty pages
@@ -622,6 +628,15 @@ static void migration_bitmap_sync(void)
     }
 }
 
+static void send_dedup_page(ram_addr_t source, QEMUFile *f, uint8_t *current_data,
+                            ram_addr_t current_addr, RAMBlock *block,
+                            ram_addr_t offset, int cont, bool last_stage) {
+  int bytes_sent = 0;
+  bytes_sent = save_block_hdr(f, block, offset, cont, DEDUP_FLAG);
+  qemu_put_byte(f, FULL_DEDUP_FLAG);
+  qemu_put_be64(f, source);
+}
+
 /*
  * ram_save_block: Writes a page of memory to the stream f
  *
@@ -718,7 +733,21 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
             /* XBZRLE overflow or normal page */
             if (bytes_sent == -1) {
                 //ASHISH-START
-                if(ram_bulk_stage && migrate_use_xbzrle()) { // if bulk stage and xbzrle enabled, then 
+              if(migrate_use_xbzrle()) {
+                memcpy(p, dedup_page_buffer, TARGET_PAGE_SIZE);
+                unsigned char sha256sum[32];
+                hash(dedup_page_buffer, TARGET_PAGE_SIZE, sha256sum);
+                int index = find_entry(full_page_hash_table, sha256sum, ram_pages); 
+                if(index != -1) {
+                  table_entry src_entry = full_page_hash_table[index];
+                  uint64_t src_page_num = src_entry.page_num;
+                  src_page_num = src_page_num << TARGET_PAGE_BITS;
+                  send_dedup_page(src_page_num, f, p, current_addr, block,
+                                              offset, cont, last_stage);
+                }
+              
+                else {
+                  if(ram_bulk_stage) { // if bulk stage and xbzrle enabled, then 
                                                              // insert the page into cache if set in skip bitmap
                     if (test_bit(current_addr >> TARGET_PAGE_BITS, skip_bitmap)) {
                         //printf("S");
@@ -738,7 +767,8 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                             printf("F");
                         }*/
                     }
-                }
+                  }
+
                 //ASHISH-END
 
                 bytes_sent = save_block_hdr(f, block, offset, cont, RAM_SAVE_FLAG_PAGE);
@@ -750,6 +780,8 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 bytes_sent += TARGET_PAGE_SIZE;
                 acct_info.norm_pages++;
                 normal_pages_sent++;
+                }
+              }
             }
 
             XBZRLE_cache_unlock();
@@ -873,8 +905,12 @@ static FILE *migration_log_file;
 static int ram_save_setup(QEMUFile *f, void *opaque)
 {
     RAMBlock *block;
+    
     ram_pages = last_ram_offset() >> TARGET_PAGE_BITS;
     //migration_log_file = fopen("/var/log/migration_log_without_skip.txt", "a");
+    full_page_hash_table.table = create_table(ram_pages);
+    full_page_hash_table.size = ram_pages;
+    dedup_page_buffer = g_try_malloc0(TARGET_PAGE_SIZE);
     migration_log_file = fopen(qemu_name, "a");
 
     migration_bitmap = bitmap_new(ram_pages);
@@ -1405,6 +1441,17 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
             }
         } else if (flags & RAM_SAVE_FLAG_HOOK) {
             ram_control_load_hook(f, flags);
+        } else if (flags & DEDUP_FLAG) {
+            int sub_flag = qemu_get_byte(f);
+            uint64_t src_addr = qemu_get_be64(f);
+            void *host, *src;
+
+            host = host_from_stream_offset(f, addr, flags);
+            src = host_from_stream_offset(f, src_addr, flags);
+            if (!host || !src) {
+                return -EINVAL;
+            }
+            memcpy(src, host, TARGET_PAGE_SIZE);
         }
         error = qemu_file_get_error(f);
         if (error) {
