@@ -51,7 +51,8 @@
 #include "exec/ram_addr.h"
 #include "hw/acpi/acpi.h"
 #include "qemu/host-utils.h"
-#include "hashing.h"
+//#include "migration/sha256.h"
+//#include "hashing.h"
 
 #ifdef DEBUG_ARCH_INIT
 #define DPRINTF(fmt, ...) \
@@ -364,7 +365,7 @@ static void xbzrle_cache_zero_page(ram_addr_t current_addr)
 
     /* We don't care if this fails to allocate a new cache page
      * as long as it updated an old one */
-    cache_insert(XBZRLE.cache, current_addr, ZERO_TARGET_PAGE);
+    cache_insert(XBZRLE.cache, current_addr, ZERO_TARGET_PAGE, full_page_hash_table);
 }
 
 #define ENCODING_FLAG_XBZRLE 0x1
@@ -384,7 +385,7 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
         //ASHISH-END
 
         if (!last_stage) {
-            if (cache_insert(XBZRLE.cache, current_addr, current_data) == -1) {
+            if (cache_insert(XBZRLE.cache, current_addr, current_data, full_page_hash_table) == -1) {
                 return -1;
             }
         }
@@ -737,9 +738,9 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 memcpy(p, dedup_page_buffer, TARGET_PAGE_SIZE);
                 unsigned char sha256sum[32];
                 hash(dedup_page_buffer, TARGET_PAGE_SIZE, sha256sum);
-                int index = find_entry(full_page_hash_table, sha256sum, ram_pages); 
+                int index = find_entry(full_page_hash_table.table, sha256sum, ram_pages); 
                 if(index != -1) {
-                  table_entry src_entry = full_page_hash_table[index];
+                  table_entry src_entry = full_page_hash_table.table[index];
                   uint64_t src_page_num = src_entry.page_num;
                   src_page_num = src_page_num << TARGET_PAGE_BITS;
                   send_dedup_page(src_page_num, f, p, current_addr, block,
@@ -754,7 +755,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         size_t pos = cache_get_cache_pos(XBZRLE.cache, current_addr);
                         if(!test_bit(pos, filled_cache_slots)){ // if corresponding slot in cache is free 
                                                                 // only then insert into cache. Don't replace
-                            if(cache_insert(XBZRLE.cache, current_addr, p) != -1){
+                            if(cache_insert(XBZRLE.cache, current_addr, p, full_page_hash_table) != -1){
                                 pages_saved_to_cache++;
                                 set_bit(pos, filled_cache_slots);
 

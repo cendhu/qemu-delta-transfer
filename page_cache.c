@@ -25,7 +25,8 @@
 #include "qemu-common.h"
 #include "migration/page_cache.h"
 #include "qemu/bitops.h"
-#include "hashing.h"
+
+#define TARGET_PAGE_BITS 12
 
 #ifdef DEBUG_CACHE
 #define DPRINTF(fmt, ...) \
@@ -184,7 +185,7 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_tab
     memcpy(it->it_data, pdata, cache->page_size);
     unsigned char sha256sum[32];
     hash(it->it_data, cache->page_size, sha256sum);
-    unsigned int index = get_index(sha256sum, ht.size);
+    unsigned int index = getindex(sha256sum, ht.size);
     insert_entry(ht.table, ht.size, index, sha256sum, addr >> TARGET_PAGE_BITS); 
     
     it->it_age = ++cache->max_item_age;

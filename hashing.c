@@ -1,14 +1,4 @@
-#include "sha256.h"
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdbool.h>
-
-#define TABLE_SIZE 64
-#define HASHSIZE 32
-
-#define PAGE_BITS 8 //within int bounds < 32
-//#define HASH_INDEX_MASK ((unsigned int) (1 << PAGE_BITS) - 1)
+#include "migration/hashing.h"
 
 void hash(unsigned char * buffer, int len, unsigned char * sha256sum){
     sha256_context ctx;
@@ -50,7 +40,7 @@ void print_sha256(unsigned char * sha256sum){
     printf("\n");
 }
 
-struct table_entry {
+/*struct table_entry {
   char hash_val[HASHSIZE];
   uint32_t page_num;
   bool is_empty;
@@ -64,7 +54,7 @@ struct hash_table_t {
 };
 
 typedef struct hash_table_t hash_table_t;
-
+*/
 table_entry* create_table(uint32_t size) {
   table_entry* hash_table = (table_entry*) calloc(size, sizeof(table_entry));
   int i;
@@ -144,7 +134,7 @@ void print_table(table_entry *hash_table, uint32_t size) {
     printf(", Occupancy : %d, Page No : %d\n",hash_table[i].is_empty, hash_table[i].page_num);
   }
 }
-
+/*
 int main_check() {
     char buf[100] = "abcdefght 323";
     int len = 100;
@@ -153,7 +143,7 @@ int main_check() {
     hash(buf, len, sha256sum);
     print_sha256(sha256sum);
 
-    int hashmask = HASH_INDEX_MASK;
+    //int hashmask = HASH_INDEX_MASK;
     printf("hashmask %d\n", hashmask);
     printf("hashindex %u\n", getindex(sha256sum));
     unsigned int index =  getindex(sha256sum);
@@ -179,3 +169,4 @@ int main_check() {
   print_table(ht, TABLE_SIZE);
   return 0;
 }
+*/
