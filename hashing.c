@@ -5,17 +5,21 @@ void hash(unsigned char * buffer, int len, unsigned char * sha256sum){
     sha256_starts(&ctx);
     sha256_update(&ctx, buffer, len);
     sha256_finish(&ctx, sha256sum);
+    /*int i;
+    for(i=0; i<32; i++) {
+      sha256sum[i] = i;
+    }*/
 }
 
 unsigned int getindex(unsigned char * sha256sum, int table_size){
 
     int j;
-    for( j = 0; j < 32; j++ )
+    /*for( j = 0; j < 32; j++ )
     {
         printf( "%02x", sha256sum[j] );
     }
     printf("\n");
-
+*/
     /*sha256sum[28] = 0;
     sha256sum[29] = 0;
     sha256sum[30] = 0;
@@ -27,7 +31,6 @@ unsigned int getindex(unsigned char * sha256sum, int table_size){
 
     unsigned masked_index;
     masked_index = lastint % table_size;
-
     return masked_index;
 }
 
@@ -65,7 +68,8 @@ table_entry* create_table(uint32_t size) {
   return hash_table;
 }
 
-void insert_entry(table_entry *hash_table, uint32_t table_size, uint32_t index, char *hash, uint32_t page_num) {
+void insert_entry(table_entry *hash_table, uint32_t table_size, char *hash, uint32_t page_num) {
+  int index = getindex(hash, table_size);
   if(index >= table_size) {
     printf("Insertion error : index out of bounds!\n");
   }
@@ -94,10 +98,16 @@ void insert_entry(table_entry *hash_table, uint32_t table_size, uint32_t index, 
 }
 
 uint32_t find_entry(table_entry *hash_table, char *hash, uint32_t table_size) {
- uint32_t i;
- for(i = 0; i < table_size; i++) {
-  if(memcmp(hash_table[i].hash_val, hash, HASHSIZE) == 0) {
-    return i;
+ uint32_t i,j=0;
+ i = getindex(hash, table_size);
+ for(j = i; j < table_size; j++) {
+  if(memcmp(hash_table[j].hash_val, hash, HASHSIZE) == 0) {
+    return j;
+  }
+ }
+ for(j = 0; j < i; j++) {
+  if(memcmp(hash_table[j].hash_val, hash, HASHSIZE) == 0) {
+    return j;
   }
  }
  return -1;

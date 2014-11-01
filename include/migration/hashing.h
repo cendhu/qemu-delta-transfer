@@ -6,11 +6,7 @@
 #ifndef _HASHING_H
 #define _HASHING_H
 
-#define TABLE_SIZE 64
 #define HASHSIZE 32
-
-#define PAGE_BITS 8 //within int bounds < 32
-//#define HASH_INDEX_MASK ((unsigned int) (1 << PAGE_BITS) - 1)
 
 void hash(unsigned char * buffer, int len, unsigned char * sha256sum);
 
@@ -35,7 +31,7 @@ typedef struct hash_table_t hash_table_t;
 
 table_entry* create_table(uint32_t size);
 
-void insert_entry(table_entry *hash_table, uint32_t table_size, uint32_t index, char *hash, uint32_t page_num);
+void insert_entry(table_entry *hash_table, uint32_t table_size, char *hash, uint32_t page_num);
 
 uint32_t find_entry(table_entry *hash_table, char *hash, uint32_t table_size);
 

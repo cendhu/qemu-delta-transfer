@@ -383,12 +383,13 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
         //ASHISH-START
         set_bit(current_addr/TARGET_PAGE_SIZE, cache_misses[pre_copy_round]); //set the bit in bitmap corresponding to page for which miss occured
         //ASHISH-END
-
+        /*
         if (!last_stage) {
             if (cache_insert(XBZRLE.cache, current_addr, current_data, full_page_hash_table) == -1) {
                 return -1;
             }
         }
+        */
         acct_info.xbzrle_cache_miss++;
         //CENDHU_START
         round_xbzrle_cache_miss++;
@@ -423,13 +424,14 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
         round_xbzrle_overflows++;
         //CENDHU_END
         /* update data in the cache */
-        memcpy(prev_cached_page, current_data, TARGET_PAGE_SIZE);
+        //memcpy(prev_cached_page, current_data, TARGET_PAGE_SIZE);
+        cache_insert(XBZRLE.cache, current_addr, XBZRLE.current_buf, full_page_hash_table);
         return -1;
     }
 
     /* we need to update the data in the cache, in order to get the same data */
     if (!last_stage) {
-        memcpy(prev_cached_page, XBZRLE.current_buf, TARGET_PAGE_SIZE);
+        cache_insert(XBZRLE.cache, current_addr, XBZRLE.current_buf, full_page_hash_table);
     }
 
     /* Send XBZRLE based compressed page */
@@ -632,6 +634,8 @@ static void migration_bitmap_sync(void)
 static void send_dedup_page(ram_addr_t source, QEMUFile *f, uint8_t *current_data,
                             ram_addr_t current_addr, RAMBlock *block,
                             ram_addr_t offset, int cont, bool last_stage) {
+   
+  printf("Transfer DEDUP : curr %" PRIu64 " dupl of%" PRIu64 "\n", current_addr, source);
   int bytes_sent = 0;
   bytes_sent = save_block_hdr(f, block, offset, cont, DEDUP_FLAG);
   qemu_put_byte(f, FULL_DEDUP_FLAG);
@@ -647,6 +651,11 @@ static void send_dedup_page(ram_addr_t source, QEMUFile *f, uint8_t *current_dat
 
 static int ram_save_block(QEMUFile *f, bool last_stage)
 {
+    static int page_count = 0;
+    if(page_count % 1000 == 0) {
+      printf("%d\n",page_count);
+    }
+    page_count++;
     RAMBlock *block = last_seen_block;
     ram_addr_t offset = last_offset;
     bool complete_round = false;
@@ -717,25 +726,13 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
             else if (!ram_bulk_stage && migrate_use_xbzrle()) {
                 bytes_sent = save_xbzrle_page(f, p, current_addr, block,
                                               offset, cont, last_stage);
-                if (!last_stage) {
-                    /* We must send exactly what's in the xbzrle cache
-                     * even if the page wasn't xbzrle compressed, so that
-                     * it's right next time.
-                     */
-                    p = get_cached_data(XBZRLE.cache, current_addr);
-
-                    /* Can't send this cached data async, since the cache page
-                     * might get updated before it gets to the wire
-                     */
-                    send_async = false;
-                }
             }
 
             /* XBZRLE overflow or normal page */
             if (bytes_sent == -1) {
                 //ASHISH-START
               if(migrate_use_xbzrle()) {
-                memcpy(p, dedup_page_buffer, TARGET_PAGE_SIZE);
+                memcpy(dedup_page_buffer, p, TARGET_PAGE_SIZE);
                 unsigned char sha256sum[32];
                 hash(dedup_page_buffer, TARGET_PAGE_SIZE, sha256sum);
                 int index = find_entry(full_page_hash_table.table, sha256sum, ram_pages); 
@@ -743,7 +740,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                   table_entry src_entry = full_page_hash_table.table[index];
                   uint64_t src_page_num = src_entry.page_num;
                   src_page_num = src_page_num << TARGET_PAGE_BITS;
-                  send_dedup_page(src_page_num, f, p, current_addr, block,
+                  send_dedup_page(src_page_num, f, dedup_page_buffer, current_addr, block,
                                               offset, cont, last_stage);
                 }
               
@@ -755,11 +752,11 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         size_t pos = cache_get_cache_pos(XBZRLE.cache, current_addr);
                         if(!test_bit(pos, filled_cache_slots)){ // if corresponding slot in cache is free 
                                                                 // only then insert into cache. Don't replace
-                            if(cache_insert(XBZRLE.cache, current_addr, p, full_page_hash_table) != -1){
+                            if(cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table) != -1){
                                 pages_saved_to_cache++;
                                 set_bit(pos, filled_cache_slots);
 
-                                p = get_cached_data(XBZRLE.cache, current_addr);
+                                p = dedup_page_buffer;
                                 send_async = false;
                             }
                             //printf("S");
@@ -767,6 +764,13 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         /*else{
                             printf("F");
                         }*/
+                    }
+                  }
+                  else {
+                    if (!last_stage) {
+                      cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
+                      p = dedup_page_buffer;
+                      send_async = false;
                     }
                   }
 
@@ -905,6 +909,7 @@ static FILE *migration_log_file;
 
 static int ram_save_setup(QEMUFile *f, void *opaque)
 {
+    printf("In ram_save_setup\n");
     RAMBlock *block;
     
     ram_pages = last_ram_offset() >> TARGET_PAGE_BITS;
@@ -992,6 +997,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
     qemu_put_be64(f, RAM_SAVE_FLAG_EOS);
 
+    printf("Exiting ram_save_setup\n");
     return 0;
 }
 
@@ -1349,6 +1355,32 @@ void ram_handle_compressed(void *host, uint8_t ch, uint64_t size)
     }
 }
 
+
+/*
+* get_block_from_page_number: returns RAMBlock which contains the given page(identified by page number)
+*/
+static uint8_t * get_block_from_page_number(uint64_t page_number){
+    uint64_t ram_addr = page_number << TARGET_PAGE_BITS;
+    //printf("offset : %" PRIu64 "  length %" PRIu64 "\n" , block->offset, block->length);
+    RAMBlock *block = NULL;
+    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+        if((ram_addr >= block->offset) && (ram_addr < block->offset + block->length)){
+            break;
+        }
+    }
+    if(block != NULL) {
+      MemoryRegion *mr;
+      ram_addr_t offset;
+      uint8_t *p;
+      offset = (ram_addr - block->offset);
+      mr = block->mr;
+      p = memory_region_get_ram_ptr(mr) + offset;
+      return p;
+    }
+
+    return NULL; //should not reach here(if a valid page_number is given)
+}
+
 static int ram_load(QEMUFile *f, void *opaque, int version_id)
 {
     ram_addr_t addr;
@@ -1443,16 +1475,15 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         } else if (flags & RAM_SAVE_FLAG_HOOK) {
             ram_control_load_hook(f, flags);
         } else if (flags & DEDUP_FLAG) {
+            void *host, *src;
+            host = host_from_stream_offset(f, addr, flags);
             int sub_flag = qemu_get_byte(f);
             uint64_t src_addr = qemu_get_be64(f);
-            void *host, *src;
-
-            host = host_from_stream_offset(f, addr, flags);
-            src = host_from_stream_offset(f, src_addr, flags);
+            src = get_block_from_page_number(src_addr >> TARGET_PAGE_BITS);
             if (!host || !src) {
                 return -EINVAL;
             }
-            memcpy(src, host, TARGET_PAGE_SIZE);
+            memcpy(host, src, TARGET_PAGE_SIZE);
         }
         error = qemu_file_get_error(f);
         if (error) {
