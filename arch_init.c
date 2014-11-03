@@ -757,8 +757,13 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                     printf("Page in cache and cur page different!\n");
                     exit(0);
                   }
-                  send_dedup_page(src_addr, f, dedup_page_buffer, current_addr, block,
+                  if(src_addr != current_addr) {
+                    send_dedup_page(src_addr, f, dedup_page_buffer, current_addr, block,
                                               offset, cont, last_stage);
+                  }
+                  else {
+                    printf("Src address equals current address\n");
+                  }
                 }
               
                 else {
@@ -799,7 +804,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                   normal_pages_sent++;
                 }
 
-                if (!ram_bulk_stage /*&& !last_stage*/) { //We need to still keep updated even if last stage when using dedup
+                if (index == -1 && !ram_bulk_stage /*&& !last_stage*/) { //We need to still keep updated even if last stage when using dedup
                   cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
                 }
               }
