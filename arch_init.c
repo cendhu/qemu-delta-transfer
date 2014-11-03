@@ -724,8 +724,9 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 /*xbzrle_cache_zero_page(current_addr);
             } */
             else if (!ram_bulk_stage && migrate_use_xbzrle()) {
-                bytes_sent = save_xbzrle_page(f, p, current_addr, block,
-                                              offset, cont, last_stage);
+                //bytes_sent = save_xbzrle_page(f, p, current_addr, block,
+                  //                            offset, cont, last_stage);
+                bytes_sent = -1;
             }
 
             /* XBZRLE overflow or normal page */
@@ -781,23 +782,25 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         }*/
                     }
                   }
+                  else{
+                    send_async = false;
+                  }
 
                 //ASHISH-END
 
-                bytes_sent = save_block_hdr(f, block, offset, cont, RAM_SAVE_FLAG_PAGE);
-                if (send_async) {
-                    qemu_put_buffer_async(f, dedup_page_buffer, TARGET_PAGE_SIZE);
-                } else {
+                  bytes_sent = save_block_hdr(f, block, offset, cont, RAM_SAVE_FLAG_PAGE);
+                  if (send_async) {
+                    qemu_put_buffer_async(f, p, TARGET_PAGE_SIZE); //p is not overwritten. It points to memory region
+                  } else {
                     qemu_put_buffer(f, dedup_page_buffer, TARGET_PAGE_SIZE);
+                  }
+                  bytes_sent += TARGET_PAGE_SIZE;
+                  acct_info.norm_pages++;
+                  normal_pages_sent++;
                 }
-                bytes_sent += TARGET_PAGE_SIZE;
-                acct_info.norm_pages++;
-                normal_pages_sent++;
-              }
 
-                if (!ram_bulk_stage && !last_stage) {
+                if (!ram_bulk_stage /*&& !last_stage*/) { //We need to still keep updated even if last stage when using dedup
                   cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
-                  send_async = false;
                 }
               }
             }

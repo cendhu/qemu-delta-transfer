@@ -101,12 +101,12 @@ int find_entry(table_entry *hash_table, char *hash, int table_size) {
  int i,j=0;
  i = getindex(hash, table_size);
  for(j = i; j < table_size; j++) {
-  if(memcmp(hash_table[j].hash_val, hash, HASHSIZE) == 0) {
+  if(!hash_table[j].is_empty && memcmp(hash_table[j].hash_val, hash, HASHSIZE) == 0) {
     return j;
   }
  }
  for(j = 0; j < i; j++) {
-  if(memcmp(hash_table[j].hash_val, hash, HASHSIZE) == 0) {
+  if(!hash_table[j].is_empty && memcmp(hash_table[j].hash_val, hash, HASHSIZE) == 0) {
     return j;
   }
  }
