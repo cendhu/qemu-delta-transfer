@@ -83,15 +83,15 @@ void insert_entry(table_entry *hash_table, uint32_t table_size, char *hash, uint
   else {
     uint32_t i = index+1;
     while(i % table_size != index) {
-      if(hash_table[i].is_empty) {
-        memcpy(hash_table[i].hash_val, hash, HASHSIZE);
-        hash_table[i].page_num = page_num;
-        hash_table[i].is_empty = 0;
+      if(hash_table[i % table_size].is_empty) {
+        memcpy(hash_table[i % table_size].hash_val, hash, HASHSIZE);
+        hash_table[i % table_size].page_num = page_num;
+        hash_table[i % table_size].is_empty = 0;
         break;
       }
       else i++;
     }
-    if(i == index) {
+    if(i % table_size == index) {
       printf("Table insertion error : No empty slots!\n");
     }
   }
