@@ -16,7 +16,7 @@ void print_sha256(unsigned char * sha256sum);
 
 struct table_entry {
   char hash_val[HASHSIZE];
-  uint32_t page_num;
+  int64_t page_addr;
   bool is_empty;
 };
 
@@ -24,20 +24,20 @@ typedef struct table_entry table_entry;
 
 struct hash_table_t {
   table_entry *table;
-  uint32_t size;
+  int size;
 };
 
 typedef struct hash_table_t hash_table_t;
 
-table_entry* create_table(uint32_t size);
+table_entry* create_table(int size);
 
-void insert_entry(table_entry *hash_table, uint32_t table_size, char *hash, uint32_t page_num);
+void insert_entry(table_entry *hash_table, int table_size, char *hash, int64_t page_addr);
 
-uint32_t find_entry(table_entry *hash_table, char *hash, uint32_t table_size);
+int find_entry(table_entry *hash_table, char *hash, int table_size);
 
-void update_entry(table_entry *hash_table, uint32_t table_size, char *old_hash, char *new_hash,  uint32_t page_num);
+void update_entry(table_entry *hash_table, int table_size, char *old_hash, char *new_hash,  int64_t page_addr);
 
-void delete_entry(table_entry *hash_table, uint32_t table_size, char *hash);
+int delete_entry(table_entry *hash_table, int table_size, char *hash);
 
-void print_table(table_entry *hash_table, uint32_t size);
+void print_table(table_entry *hash_table, int size);
 #endif

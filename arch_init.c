@@ -425,7 +425,7 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
         //CENDHU_END
         /* update data in the cache */
         //memcpy(prev_cached_page, current_data, TARGET_PAGE_SIZE);
-        cache_insert(XBZRLE.cache, current_addr, XBZRLE.current_buf, full_page_hash_table);
+        //cache_insert(XBZRLE.cache, current_addr, XBZRLE.current_buf, full_page_hash_table);
         return -1;
     }
 
@@ -738,9 +738,25 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 int index = find_entry(full_page_hash_table.table, sha256sum, ram_pages); 
                 if(index != -1) {
                   table_entry src_entry = full_page_hash_table.table[index];
-                  uint64_t src_page_num = src_entry.page_num;
-                  src_page_num = src_page_num << TARGET_PAGE_BITS;
-                  send_dedup_page(src_page_num, f, dedup_page_buffer, current_addr, block,
+                  uint64_t src_addr = src_entry.page_addr;
+                  //uint64_t src_addr = src_page_num << TARGET_PAGE_BITS;
+                  uint8_t *prev_cached_page;
+                  prev_cached_page = get_cached_data(XBZRLE.cache, src_addr);
+                  if(prev_cached_page == NULL) {
+                    printf("Prev cached data NULL\n");
+                    exit(0);
+                  }
+                  unsigned char sha256sum2[32];
+                  hash(prev_cached_page, TARGET_PAGE_SIZE, sha256sum2);
+                  if(memcmp(sha256sum, sha256sum2, 32) != 0) {
+                    printf("Hashes different!\n");
+                    exit(0);
+                  }
+                  if(memcmp(prev_cached_page, dedup_page_buffer, TARGET_PAGE_SIZE) != 0) {
+                    printf("Page in cache and cur page different!\n");
+                    exit(0);
+                  }
+                  send_dedup_page(src_addr, f, dedup_page_buffer, current_addr, block,
                                               offset, cont, last_stage);
                 }
               
@@ -756,7 +772,6 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                                 pages_saved_to_cache++;
                                 set_bit(pos, filled_cache_slots);
 
-                                p = dedup_page_buffer;
                                 send_async = false;
                             }
                             //printf("S");
@@ -766,25 +781,23 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         }*/
                     }
                   }
-                  else {
-                    if (!last_stage) {
-                      cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
-                      p = dedup_page_buffer;
-                      send_async = false;
-                    }
-                  }
 
                 //ASHISH-END
 
                 bytes_sent = save_block_hdr(f, block, offset, cont, RAM_SAVE_FLAG_PAGE);
                 if (send_async) {
-                    qemu_put_buffer_async(f, p, TARGET_PAGE_SIZE);
+                    qemu_put_buffer_async(f, dedup_page_buffer, TARGET_PAGE_SIZE);
                 } else {
-                    qemu_put_buffer(f, p, TARGET_PAGE_SIZE);
+                    qemu_put_buffer(f, dedup_page_buffer, TARGET_PAGE_SIZE);
                 }
                 bytes_sent += TARGET_PAGE_SIZE;
                 acct_info.norm_pages++;
                 normal_pages_sent++;
+              }
+
+                if (!ram_bulk_stage && !last_stage) {
+                  cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
+                  send_async = false;
                 }
               }
             }

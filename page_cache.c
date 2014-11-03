@@ -170,7 +170,11 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_tab
     if(it->it_addr != -1) {
       unsigned char sha256sum[32];
       hash(it->it_data, cache->page_size, sha256sum);
-      delete_entry(ht.table, ht.size, sha256sum);
+      int res = delete_entry(ht.table, ht.size, sha256sum);
+      if (res != 1) {
+        printf("Entry not found to delete\n");
+        exit(0);
+      }
     }
     /* allocate page */
     if (!it->it_data) {
@@ -185,7 +189,7 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_tab
     memcpy(it->it_data, pdata, cache->page_size);
     unsigned char sha256sum[32];
     hash(it->it_data, cache->page_size, sha256sum);
-    insert_entry(ht.table, ht.size, sha256sum, addr >> TARGET_PAGE_BITS); 
+    insert_entry(ht.table, ht.size, sha256sum, addr); 
     
     it->it_age = ++cache->max_item_age;
     it->it_addr = addr;

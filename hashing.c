@@ -45,7 +45,7 @@ void print_sha256(unsigned char * sha256sum){
 
 /*struct table_entry {
   char hash_val[HASHSIZE];
-  uint32_t page_num;
+  int64_t page_addr;
   bool is_empty;
 };
 
@@ -53,39 +53,39 @@ typedef struct table_entry table_entry;
 
 struct hash_table_t {
   table_entry *table;
-  uint32_t size;
+  int64_t size;
 };
 
 typedef struct hash_table_t hash_table_t;
 */
-table_entry* create_table(uint32_t size) {
+table_entry* create_table(int size) {
   table_entry* hash_table = (table_entry*) calloc(size, sizeof(table_entry));
   int i;
   for(i=0; i < size; i++) {
-    hash_table[i].page_num = -1;
+    hash_table[i].page_addr = -1;
     hash_table[i].is_empty = 1;
   }
   return hash_table;
 }
 
-void insert_entry(table_entry *hash_table, uint32_t table_size, char *hash, uint32_t page_num) {
+void insert_entry(table_entry *hash_table, int table_size, char *hash, int64_t page_addr) {
   int index = getindex(hash, table_size);
   if(index >= table_size) {
     printf("Insertion error : index out of bounds!\n");
   }
   else if(hash_table[index].is_empty) {
     memcpy(hash_table[index].hash_val, hash, HASHSIZE);
-    hash_table[index].page_num = page_num;
+    hash_table[index].page_addr = page_addr;
     hash_table[index].is_empty = 0;
   }
 
   //Slot not empty. Probe linearly.
   else {
-    uint32_t i = index+1;
+    int i = index+1;
     while(i % table_size != index) {
       if(hash_table[i % table_size].is_empty) {
         memcpy(hash_table[i % table_size].hash_val, hash, HASHSIZE);
-        hash_table[i % table_size].page_num = page_num;
+        hash_table[i % table_size].page_addr = page_addr;
         hash_table[i % table_size].is_empty = 0;
         break;
       }
@@ -97,8 +97,8 @@ void insert_entry(table_entry *hash_table, uint32_t table_size, char *hash, uint
   }
 }
 
-uint32_t find_entry(table_entry *hash_table, char *hash, uint32_t table_size) {
- uint32_t i,j=0;
+int find_entry(table_entry *hash_table, char *hash, int table_size) {
+ int i,j=0;
  i = getindex(hash, table_size);
  for(j = i; j < table_size; j++) {
   if(memcmp(hash_table[j].hash_val, hash, HASHSIZE) == 0) {
@@ -113,11 +113,11 @@ uint32_t find_entry(table_entry *hash_table, char *hash, uint32_t table_size) {
  return -1;
 }
 
-void update_entry(table_entry *hash_table, uint32_t table_size, char *old_hash, char *new_hash,  uint32_t page_num) {
-  uint32_t i = find_entry(hash_table, old_hash, table_size);
+void update_entry(table_entry *hash_table, int table_size, char *old_hash, char *new_hash,  int64_t page_addr) {
+  int i = find_entry(hash_table, old_hash, table_size);
   if(i != -1) {
     memcpy(hash_table[i].hash_val, new_hash, HASHSIZE);
-    hash_table[i].page_num = page_num;
+    hash_table[i].page_addr = page_addr;
     hash_table[i].is_empty = 0;
   }
   else {
@@ -125,23 +125,25 @@ void update_entry(table_entry *hash_table, uint32_t table_size, char *old_hash, 
   }
 }
 
-void delete_entry(table_entry *hash_table, uint32_t table_size, char *hash) {
-  uint32_t i = find_entry(hash_table, hash, table_size);
+int delete_entry(table_entry *hash_table, int table_size, char *hash) {
+  int i = find_entry(hash_table, hash, table_size);
   if(i != -1) {
-    hash_table[i].page_num = -1;
+    hash_table[i].page_addr = -1;
     hash_table[i].is_empty = 1;
+    return 1;
   }
   else {
     printf("Table entry error : Entry not found!\n");
+    return -1;
   }
 }
 
-void print_table(table_entry *hash_table, uint32_t size) {
+void print_table(table_entry *hash_table, int size) {
   int i;
   for(i = 0; i < size; i++) {
     printf("Index : %d, Hash :", i);
     print_sha256(hash_table[i].hash_val);
-    printf(", Occupancy : %d, Page No : %d\n",hash_table[i].is_empty, hash_table[i].page_num);
+    printf(", Occupancy : %d, Page No : %d\n",hash_table[i].is_empty, hash_table[i].page_addr);
   }
 }
 /*
