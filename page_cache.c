@@ -165,15 +165,17 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_tab
     g_assert(cache);
     g_assert(cache->page_cache);
 
-    /* actual update of entry */
     it = cache_get_by_addr(cache, addr);
-    if(it->it_addr != -1) {
+
+    if(it->it_addr != -1 && it->it_addr != addr) {
+        //delete hash table entries if replacing another page. 
+        //Same page hash entries have already been deleted before calling cache_insert
       unsigned char sha256sum[32];
       hash(it->it_data, cache->page_size, sha256sum);
       int res = delete_entry(ht.table, ht.size, sha256sum);
       if (res != 1) {
-        printf("Entry not found to delete\n");
-        exit(0);
+        //printf("Entry not found to delete\n");
+        //exit(0);
       }
     }
     /* allocate page */

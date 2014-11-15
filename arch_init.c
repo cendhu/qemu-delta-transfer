@@ -642,6 +642,16 @@ static void send_dedup_page(ram_addr_t source, QEMUFile *f, uint8_t *current_dat
   qemu_put_be64(f, source);
 }
 
+
+static void delete_hash_entries(ram_addr_t addr){
+     /* actual update of entry */
+    if(cache_is_cached(XBZRLE.cache, addr)){
+        uint8_t * cached_data = get_cached_data(XBZRLE.cache, addr);
+        unsigned char sha256sum[32];
+        hash(cached_data, TARGET_PAGE_SIZE, sha256sum);
+        int res = delete_entry(full_page_hash_table.table, full_page_hash_table.size, sha256sum);
+    }
+}
 /*
  * ram_save_block: Writes a page of memory to the stream f
  *
@@ -684,7 +694,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
         } else {
             int ret;
             uint8_t *p;
-            bool send_async = true;
+            bool send_async = false;
             int cont = (block == last_sent_block) ?
                 RAM_SAVE_FLAG_CONTINUE : 0;
 
@@ -737,12 +747,13 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 unsigned char sha256sum[32];
                 hash(dedup_page_buffer, TARGET_PAGE_SIZE, sha256sum);
                 int index = find_entry(full_page_hash_table.table, sha256sum, ram_pages); 
+
                 if(index != -1) {
                   table_entry src_entry = full_page_hash_table.table[index];
                   uint64_t src_addr = src_entry.page_addr;
-                  //uint64_t src_addr = src_page_num << TARGET_PAGE_BITS;
                   uint8_t *prev_cached_page;
                   prev_cached_page = get_cached_data(XBZRLE.cache, src_addr);
+                  //uint64_t src_addr = src_page_num << TARGET_PAGE_BITS;SS
                   if(prev_cached_page == NULL) {
                     printf("Prev cached data NULL\n");
                     exit(0);
@@ -774,11 +785,10 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         size_t pos = cache_get_cache_pos(XBZRLE.cache, current_addr);
                         if(!test_bit(pos, filled_cache_slots)){ // if corresponding slot in cache is free 
                                                                 // only then insert into cache. Don't replace
+                            delete_hash_entries(current_addr);
                             if(cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table) != -1){
                                 pages_saved_to_cache++;
                                 set_bit(pos, filled_cache_slots);
-
-                                send_async = false;
                             }
                             //printf("S");
                         }
@@ -787,14 +797,11 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         }*/
                     }
                   }
-                  else{
-                    send_async = false;
-                  }
 
                 //ASHISH-END
 
                   bytes_sent = save_block_hdr(f, block, offset, cont, RAM_SAVE_FLAG_PAGE);
-                  if (send_async) {
+                  if (send_async) {//NEVER CALLED AS OBSOLETE
                     qemu_put_buffer_async(f, p, TARGET_PAGE_SIZE); //p is not overwritten. It points to memory region
                   } else {
                     qemu_put_buffer(f, dedup_page_buffer, TARGET_PAGE_SIZE);
@@ -804,8 +811,11 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                   normal_pages_sent++;
                 }
 
-                if (index == -1 && !ram_bulk_stage /*&& !last_stage*/) { //We need to still keep updated even if last stage when using dedup
-                  cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
+
+                delete_hash_entries(current_addr); //make sure that the cache entries hash table points is in sync with the destination
+
+                if (index == -1 && !ram_bulk_stage) { //We need to still keep updated even if last stage when using dedup
+                    cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
                 }
               }
             }
