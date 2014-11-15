@@ -133,7 +133,7 @@ int delete_entry(table_entry *hash_table, int table_size, char *hash) {
     return 1;
   }
   else {
-    printf("Table entry error : Entry not found!\n");
+    //printf("Table entry error : Entry not found!\n");
     return -1;
   }
 }

@@ -772,8 +772,8 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                     send_dedup_page(src_addr, f, dedup_page_buffer, current_addr, block,
                                               offset, cont, last_stage);
                   }
-                  else {
-                    printf("Src address equals current address\n");
+                  else { //this is supposed to happen since the dirty bitmap is not reset in between the round when the page is transferred
+                    //printf("Src address equals current address\n");
                   }
                 }
               
