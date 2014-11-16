@@ -1,12 +1,21 @@
-#include "migration/sha256.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
+
+#include "migration/sha256.h"
+
 #ifndef _HASHING_H
 #define _HASHING_H
 
 #define HASHSIZE 32
+
+#define TARGET_PAGE_BITS 12
+#define TARGET_PAGE_SIZE (1 << TARGET_PAGE_BITS)
+
+#define SUB_PAGE_SIZE (TARGET_PAGE_SIZE >> 2)
+#define PAGE_OFFSET_MASK (TARGET_PAGE_SIZE-1)
 
 void hash(unsigned char * buffer, int len, unsigned char * sha256sum);
 
@@ -49,13 +58,15 @@ table_entry* create_table(int size);
 
 table_entry_node* create_table_chained(int size);
 
-void insert_entry(table_entry *hash_table, int table_size, char *hash, int64_t page_addr);
-
 void insert_entry_c(table_entry_node *hash_table, int table_size, char *hash, int64_t page_addr);
 
 int delete_entry_c(table_entry_node *hash_table, int table_size, char *hash, int64_t page_addr);
 
-table_entry_node *find_entry_c(table_entry_node *hash_table, char *hash, int table_size, int64_t page_addr);
+table_entry_node *get_list_c(table_entry_node *hash_table, char *hash, int table_size);
+
+table_entry_node *find_next_c(table_entry_node *n, char *hash, int64_t page_addr);
+
+void insert_entry(table_entry *hash_table, int table_size, char *hash, int64_t page_addr);
 
 int find_entry(table_entry *hash_table, char *hash, int table_size);
 

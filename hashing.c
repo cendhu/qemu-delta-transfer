@@ -84,14 +84,9 @@ void insert_entry_c(table_entry_node *hash_table, int table_size, char *hash, in
   if(index >= table_size) {
     printf("Insertion error : index out of bounds!\n");
   }
-  else if(hash_table[index].is_empty) { //First slot in list is empty.
-    hash_table[index].addr = page_addr;
-    hash_table[index].is_empty = 0;
-    memcpy(hash_table[index].hash_val, hash, HASHSIZE);
-  }
   else {
     table_entry_node *n = &hash_table[index]; //Find the first empty slot or the last slot in the current list.
-    while(!hash_table[index].is_empty || n->next != NULL) {
+    while( ! (n->is_empty || n->next == NULL)) {
       n = n->next;
     }
     if(n->is_empty) { //If this slot is empty, insert here.
@@ -99,7 +94,7 @@ void insert_entry_c(table_entry_node *hash_table, int table_size, char *hash, in
       n->is_empty = 0;
       memcpy(n->hash_val, hash, HASHSIZE);
     } 
-    else {  //Otherwise create a new entry and make it the next entry of the current last entry. 
+    else {  //n->next is null //Otherwise create a new entry and make it the next entry of the current last entry. 
       table_entry_node *n1 = (table_entry_node*) malloc(sizeof(table_entry_node));
       n1->is_empty = 0;
       n1->addr = page_addr;
@@ -112,41 +107,38 @@ void insert_entry_c(table_entry_node *hash_table, int table_size, char *hash, in
 
 int delete_entry_c(table_entry_node *hash_table, int table_size, char *hash, int64_t page_addr) {
   int index = getindex(hash, table_size);
-  if((memcmp(hash, hash_table[index].hash_val) == 0) && hash_table[index].addr == page_addr) { //First slot matches.
-    hash_table[index].is_empty = 1;
+  
+  table_entry_node *n = &hash_table[index];
+  while(n && !(memcmp(n->hash_val, hash, HASHSIZE) == 0 && page_addr == n->addr)) {   //Find the slot that matches.
+    n = n->next;
   }
-  else {
-    table_entry_node *n = &hash_table[index].next;
-    while((memcmp(n->hash_val, hash) != 0) && page_addr != n->addr) {   //Find the slot that matches.
-      if(n->next) n = n->next;
-    }
-    if((memcmp(n->hash_val, hash) != 0) && page_addr != n->addr && !n->next) {  //Slot not found till the end.
-      printf("Entry not found!\n");
-    }  
-    else {  //Slot found, delete.
-      n->is_empty = 0;
-    }
+  if(n == NULL) {  //Slot not found till the end.
+    printf("Entry not found!\n");
+  }  
+  else {  //Slot found, delete.
+    n->is_empty = 1;
   }
 }
 
-table_entry_node *find_entry_c(table_entry_node *hash_table, char *hash, int table_size, int64_t page_addr) {
+table_entry_node *get_list_c(table_entry_node *hash_table, char *hash, int table_size) {
   int index = getindex(hash, table_size);
-  if((memcmp(hash, hash_table[index].hash_val) == 0) && hash_table[index].addr == page_addr) { //First slot matches.
-    return &hash_table[index];
-  }
-  else {
-    table_entry_node *n = &hash_table[index].next;
-    while((memcmp(n->hash_val, hash) != 0) && page_addr != n->addr) {   //Find the slot that matches.
-      if(n->next) n = n->next;
-    }
-    if((memcmp(n->hash_val, hash) != 0) && page_addr != n->addr && !n->next) {  //Slot not found till the end.
-      printf("Entry not found!\n");
-    }  
-    else {  //Slot found, delete.
-      return n;
-    }
-  }   
+  return &hash_table[index];
 }
+
+table_entry_node *find_next_c(table_entry_node *n, char *hash, int64_t page_addr) {
+  if(n == NULL) return NULL;
+
+  while(! (n->is_empty == 0 && 
+           memcmp(n->hash_val, hash, HASHSIZE) == 0 && 
+           (page_addr & PAGE_OFFSET_MASK) == (n->addr & PAGE_OFFSET_MASK))) {   //Find the slot that matches.
+    n = n->next;
+    if(n == NULL) break;
+  }
+
+  return n; //NULL means reached end and no further match found
+}
+
+//=============================================================================
 
 void insert_entry(table_entry *hash_table, int table_size, char *hash, int64_t page_addr) {
   int index = getindex(hash, table_size);

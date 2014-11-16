@@ -157,7 +157,7 @@ uint8_t *get_cached_data(const PageCache *cache, uint64_t addr)
     return cache_get_by_addr(cache, addr)->it_data;
 }
 
-int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_table_t ht)
+int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_table_chained ht)
 {
 
     CacheItem *it = NULL;
@@ -172,7 +172,7 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_tab
         //Same page hash entries have already been deleted before calling cache_insert
       unsigned char sha256sum[32];
       hash(it->it_data, cache->page_size, sha256sum);
-      int res = delete_entry(ht.table, ht.size, sha256sum);
+      int res = delete_entry_c(ht.table, ht.size, sha256sum, it->it_addr);
       if (res != 1) {
         //printf("Entry not found to delete\n");
         //exit(0);
@@ -191,7 +191,7 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_tab
     memcpy(it->it_data, pdata, cache->page_size);
     unsigned char sha256sum[32];
     hash(it->it_data, cache->page_size, sha256sum);
-    insert_entry(ht.table, ht.size, sha256sum, addr); 
+    insert_entry_c(ht.table, ht.size, sha256sum, addr); 
     
     it->it_age = ++cache->max_item_age;
     it->it_addr = addr;

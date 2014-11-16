@@ -320,7 +320,7 @@ unsigned long *cache_misses[30];
 unsigned long *cache_hits[30];
 unsigned long *filled_cache_slots; // bitmap to store whether cache slot is filled
 bool round_one_over;
-hash_table_t full_page_hash_table; 
+hash_table_chained full_page_hash_table; 
 char* dedup_page_buffer;
 //ASHISH-END
 
@@ -649,7 +649,7 @@ static void delete_hash_entries(ram_addr_t addr){
         uint8_t * cached_data = get_cached_data(XBZRLE.cache, addr);
         unsigned char sha256sum[32];
         hash(cached_data, TARGET_PAGE_SIZE, sha256sum);
-        int res = delete_entry(full_page_hash_table.table, full_page_hash_table.size, sha256sum);
+        int res = delete_entry_c(full_page_hash_table.table, full_page_hash_table.size, sha256sum, addr);
     }
 }
 /*
@@ -746,11 +746,12 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 memcpy(dedup_page_buffer, p, TARGET_PAGE_SIZE);
                 unsigned char sha256sum[32];
                 hash(dedup_page_buffer, TARGET_PAGE_SIZE, sha256sum);
-                int index = find_entry(full_page_hash_table.table, sha256sum, ram_pages); 
+                table_entry_node* list = get_list_c(full_page_hash_table.table, sha256sum, ram_pages);
 
-                if(index != -1) {
-                  table_entry src_entry = full_page_hash_table.table[index];
-                  uint64_t src_addr = src_entry.page_addr;
+                table_entry_node* match = find_next_c(list, sha256sum, current_addr);
+
+                if(match != NULL) {
+                  uint64_t src_addr = match->addr;
                   uint8_t *prev_cached_page;
                   prev_cached_page = get_cached_data(XBZRLE.cache, src_addr);
                   //uint64_t src_addr = src_page_num << TARGET_PAGE_BITS;SS
@@ -814,7 +815,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
 
                 delete_hash_entries(current_addr); //make sure that the cache entries hash table points is in sync with the destination
 
-                if (index == -1 && !ram_bulk_stage) { //We need to still keep updated even if last stage when using dedup
+                if (match == NULL && !ram_bulk_stage) { //We need to still keep updated even if last stage when using dedup
                     cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
                 }
               }
@@ -945,7 +946,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     
     ram_pages = last_ram_offset() >> TARGET_PAGE_BITS;
     //migration_log_file = fopen("/var/log/migration_log_without_skip.txt", "a");
-    full_page_hash_table.table = create_table(ram_pages);
+    full_page_hash_table.table = create_table_chained(ram_pages);
     full_page_hash_table.size = ram_pages;
     dedup_page_buffer = g_try_malloc0(TARGET_PAGE_SIZE);
     migration_log_file = fopen(qemu_name, "a");
