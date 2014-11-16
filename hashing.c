@@ -68,6 +68,86 @@ table_entry* create_table(int size) {
   return hash_table;
 }
 
+table_entry_node* create_table_chained(int size) {
+  table_entry_node *ht_chained = (table_entry_node*) calloc(size, sizeof(table_entry_node));
+  int i;
+  for(i=0; i < size; i++) {
+    ht_chained[i].addr = -1;
+    ht_chained[i].is_empty = 1;
+    ht_chained[i].next = NULL;
+  }
+  return ht_chained;
+}
+
+void insert_entry_c(table_entry_node *hash_table, int table_size, char *hash, int64_t page_addr) {
+  int index = getindex(hash, table_size);
+  if(index >= table_size) {
+    printf("Insertion error : index out of bounds!\n");
+  }
+  else if(hash_table[index].is_empty) { //First slot in list is empty.
+    hash_table[index].addr = page_addr;
+    hash_table[index].is_empty = 0;
+    memcpy(hash_table[index].hash_val, hash, HASHSIZE);
+  }
+  else {
+    table_entry_node *n = &hash_table[index]; //Find the first empty slot or the last slot in the current list.
+    while(!hash_table[index].is_empty || n->next != NULL) {
+      n = n->next;
+    }
+    if(n->is_empty) { //If this slot is empty, insert here.
+      n->addr = page_addr;
+      n->is_empty = 0;
+      memcpy(n->hash_val, hash, HASHSIZE);
+    } 
+    else {  //Otherwise create a new entry and make it the next entry of the current last entry. 
+      table_entry_node *n1 = (table_entry_node*) malloc(sizeof(table_entry_node));
+      n1->is_empty = 0;
+      n1->addr = page_addr;
+      memcpy(n1->hash_val, hash, HASHSIZE);
+      n1->next = NULL;
+      n->next = n1;
+    }
+  }
+}
+
+int delete_entry_c(table_entry_node *hash_table, int table_size, char *hash, int64_t page_addr) {
+  int index = getindex(hash, table_size);
+  if((memcmp(hash, hash_table[index].hash_val) == 0) && hash_table[index].addr == page_addr) { //First slot matches.
+    hash_table[index].is_empty = 1;
+  }
+  else {
+    table_entry_node *n = &hash_table[index].next;
+    while((memcmp(n->hash_val, hash) != 0) && page_addr != n->addr) {   //Find the slot that matches.
+      if(n->next) n = n->next;
+    }
+    if((memcmp(n->hash_val, hash) != 0) && page_addr != n->addr && !n->next) {  //Slot not found till the end.
+      printf("Entry not found!\n");
+    }  
+    else {  //Slot found, delete.
+      n->is_empty = 0;
+    }
+  }
+}
+
+table_entry_node *find_entry_c(table_entry_node *hash_table, char *hash, int table_size, int64_t page_addr) {
+  int index = getindex(hash, table_size);
+  if((memcmp(hash, hash_table[index].hash_val) == 0) && hash_table[index].addr == page_addr) { //First slot matches.
+    return &hash_table[index];
+  }
+  else {
+    table_entry_node *n = &hash_table[index].next;
+    while((memcmp(n->hash_val, hash) != 0) && page_addr != n->addr) {   //Find the slot that matches.
+      if(n->next) n = n->next;
+    }
+    if((memcmp(n->hash_val, hash) != 0) && page_addr != n->addr && !n->next) {  //Slot not found till the end.
+      printf("Entry not found!\n");
+    }  
+    else {  //Slot found, delete.
+      return n;
+    }
+  }   
+}
+
 void insert_entry(table_entry *hash_table, int table_size, char *hash, int64_t page_addr) {
   int index = getindex(hash, table_size);
   if(index >= table_size) {
@@ -147,7 +227,7 @@ void print_table(table_entry *hash_table, int size) {
   }
 }
 /*
-int main_check() {
+int main() {
     char buf[100] = "abcdefght 323";
     int len = 100;
 
@@ -160,7 +240,9 @@ int main_check() {
     printf("hashindex %u\n", getindex(sha256sum));
     unsigned int index =  getindex(sha256sum);
     printf("hashindex %u\n", index);
-
+    table_entry_node *ht = create_table_chained(TABLE_SIZE);
+    insert_entry_c(ht, TABLE_SIZE, index, sha256sum, 1);
+   /*   
   table_entry *ht = create_table(TABLE_SIZE);
   insert_entry(ht, TABLE_SIZE, index, sha256sum, 1);
   print_table(ht, TABLE_SIZE);
@@ -180,5 +262,5 @@ int main_check() {
   insert_entry(ht, TABLE_SIZE, index, sha256sum, 6);
   print_table(ht, TABLE_SIZE);
   return 0;
-}
-*/
+}*/
+
