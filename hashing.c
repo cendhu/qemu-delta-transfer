@@ -113,7 +113,7 @@ int delete_entry_c(table_entry_node *hash_table, int table_size, char *hash, int
     n = n->next;
   }
   if(n == NULL) {  //Slot not found till the end.
-    printf("Entry not found!\n");
+    //printf("Entry not found!\n");
   }  
   else {  //Slot found, delete.
     n->is_empty = 1;

@@ -315,13 +315,26 @@ static size_t save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
     return size;
 }
 
+
 //ASHISH-START
+typedef struct sub_page_match_t{
+    ram_addr_t addr;
+    int count;
+} sub_page_match_t;
+
 unsigned long *cache_misses[30];
 unsigned long *cache_hits[30];
 unsigned long *filled_cache_slots; // bitmap to store whether cache slot is filled
 bool round_one_over;
 hash_table_chained full_page_hash_table; 
-char* dedup_page_buffer;
+hash_table_chained sub_page_hash_table; 
+char* dedup_page_buffer = NULL;
+
+#define SUB_PAGE_MATCH_ARRAY_LEN 10
+#define SUB_PAGE_THRESHHOLD 0//transfer only if > threshold matches
+
+sub_page_match_t sub_page_matches[SUB_PAGE_MATCH_ARRAY_LEN];
+
 //ASHISH-END
 
 /* This is the last block that we have visited serching for dirty pages
@@ -365,7 +378,7 @@ static void xbzrle_cache_zero_page(ram_addr_t current_addr)
 
     /* We don't care if this fails to allocate a new cache page
      * as long as it updated an old one */
-    cache_insert(XBZRLE.cache, current_addr, ZERO_TARGET_PAGE, full_page_hash_table);
+    //cache_insert(XBZRLE.cache, current_addr, ZERO_TARGET_PAGE, full_page_hash_table);
 }
 
 #define ENCODING_FLAG_XBZRLE 0x1
@@ -431,7 +444,7 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
 
     /* we need to update the data in the cache, in order to get the same data */
     if (!last_stage) {
-        cache_insert(XBZRLE.cache, current_addr, XBZRLE.current_buf, full_page_hash_table);
+        cache_insert(XBZRLE.cache, current_addr, XBZRLE.current_buf, full_page_hash_table, sub_page_hash_table);
     }
 
     /* Send XBZRLE based compressed page */
@@ -642,6 +655,37 @@ static void send_dedup_page(ram_addr_t source, QEMUFile *f, uint8_t *current_dat
   qemu_put_be64(f, source);
 }
 
+//returns sucess(true) or failure
+static bool send_dedup_sub_page(ram_addr_t source, QEMUFile *f, uint8_t *current_data,
+                            ram_addr_t current_addr, RAMBlock *block,
+                            ram_addr_t offset, int cont, bool last_stage) {
+   
+  printf("Transfer DEDUP SUB : curr %" PRIu64 " partial dupl of%" PRIu64 "\n", current_addr, source);
+
+  uint8_t* cached_src_page = get_cached_data(XBZRLE.cache, source);
+
+  /* XBZRLE encoding (if there is no overflow) */
+  int encoded_len = xbzrle_encode_buffer(cached_src_page, current_data,
+                                       TARGET_PAGE_SIZE, XBZRLE.encoded_buf,
+                                       TARGET_PAGE_SIZE);
+
+  if(encoded_len <= 0){
+    return false;
+  }
+
+    int bytes_sent = save_block_hdr(f, block, offset, cont, DEDUP_FLAG);
+    qemu_put_byte(f, SUB_DEDUP_FLAG);
+
+    qemu_put_be64(f, source); //send src address
+
+    qemu_put_buffer(f, cached_src_page, TARGET_PAGE_SIZE);
+
+    qemu_put_byte(f, ENCODING_FLAG_XBZRLE);
+    qemu_put_be16(f, encoded_len);
+    qemu_put_buffer(f, XBZRLE.encoded_buf, encoded_len);
+
+    return true;
+}
 
 static void delete_hash_entries(ram_addr_t addr){
      /* actual update of entry */
@@ -650,6 +694,48 @@ static void delete_hash_entries(ram_addr_t addr){
         unsigned char sha256sum[32];
         hash(cached_data, TARGET_PAGE_SIZE, sha256sum);
         int res = delete_entry_c(full_page_hash_table.table, full_page_hash_table.size, sha256sum, addr);
+
+        int offset = 0;
+        for(; offset < TARGET_PAGE_SIZE; offset+=SUB_PAGE_SIZE){
+            hash(cached_data + offset, SUB_PAGE_SIZE, sha256sum);
+            delete_entry_c(sub_page_hash_table.table, sub_page_hash_table.size, sha256sum, addr+offset);         
+        }
+    }
+}
+
+void find_sub_page_matches(uint8_t * data){
+    //reset matches array
+    int i;
+    for(i=0; i<SUB_PAGE_MATCH_ARRAY_LEN; i++){
+        sub_page_matches[i].addr = -1;
+        sub_page_matches[i].count = 0;
+    }
+
+    int offset = 0;
+    unsigned char sha256sum[32];
+    for(; offset < TARGET_PAGE_SIZE; offset+=SUB_PAGE_SIZE){//process each chunk(representing subpage)
+        hash(data + offset, SUB_PAGE_SIZE, sha256sum);
+
+        table_entry_node* list = get_list_c(sub_page_hash_table.table, sha256sum, sub_page_hash_table.size);
+        table_entry_node* match = find_next_c(list, sha256sum, offset);
+
+        while(match != NULL){
+            ram_addr_t match_addr = ((match->addr >> TARGET_PAGE_BITS) << TARGET_PAGE_BITS); //with no offset info
+
+            for(i=0; i<SUB_PAGE_MATCH_ARRAY_LEN; i++){
+                if(sub_page_matches[i].addr == -1){
+                    sub_page_matches[i].addr = match_addr;
+                    sub_page_matches[i].count++;
+                    break;
+                }
+                else if(sub_page_matches[i].addr == match_addr){
+                    sub_page_matches[i].count++;
+                    break;
+                }
+            }
+
+            match = find_next_c(match->next, sha256sum, offset);
+        }
     }
 }
 /*
@@ -746,9 +832,11 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 memcpy(dedup_page_buffer, p, TARGET_PAGE_SIZE);
                 unsigned char sha256sum[32];
                 hash(dedup_page_buffer, TARGET_PAGE_SIZE, sha256sum);
-                table_entry_node* list = get_list_c(full_page_hash_table.table, sha256sum, ram_pages);
+                table_entry_node* list = get_list_c(full_page_hash_table.table, sha256sum, full_page_hash_table.size);
 
                 table_entry_node* match = find_next_c(list, sha256sum, current_addr);
+
+                bool sub_page_dedup = false;
 
                 if(match != NULL) {
                   uint64_t src_addr = match->addr;
@@ -777,8 +865,37 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                     //printf("Src address equals current address\n");
                   }
                 }
-              
-                else {
+
+                if(match == NULL){
+                    //printf("###########################################################\n");
+                    //find sub page duplicates
+                    find_sub_page_matches(dedup_page_buffer);
+
+                    ram_addr_t best_addr = -1;
+                    int best_count = -1;
+
+                    int i;
+                    for(i=0; i<SUB_PAGE_MATCH_ARRAY_LEN; i++){
+                        if(sub_page_matches[i].addr == -1) break;
+
+                        if(sub_page_matches[i].count > best_count){
+                            best_count = sub_page_matches[i].count;
+                            best_addr = sub_page_matches[i].addr;
+                        }
+                    }
+
+                    if(best_addr != -1 && best_count > SUB_PAGE_THRESHHOLD){
+                        printf("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
+                        sub_page_dedup = send_dedup_sub_page(best_addr, f, dedup_page_buffer, current_addr, block,
+                                              offset, cont, last_stage);
+                    }
+                    else{
+                        //printf("*********************************************************\n");
+                    }
+                }
+
+                if(match == NULL && sub_page_dedup==false){
+                  //printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
                   if(ram_bulk_stage) { // if bulk stage and xbzrle enabled, then 
                                                              // insert the page into cache if set in skip bitmap
                     if (test_bit(current_addr >> TARGET_PAGE_BITS, skip_bitmap)) {
@@ -787,7 +904,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                         if(!test_bit(pos, filled_cache_slots)){ // if corresponding slot in cache is free 
                                                                 // only then insert into cache. Don't replace
                             delete_hash_entries(current_addr);
-                            if(cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table) != -1){
+                            if(cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table, sub_page_hash_table) != -1){
                                 pages_saved_to_cache++;
                                 set_bit(pos, filled_cache_slots);
                             }
@@ -816,7 +933,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 delete_hash_entries(current_addr); //make sure that the cache entries hash table points is in sync with the destination
 
                 if (match == NULL && !ram_bulk_stage) { //We need to still keep updated even if last stage when using dedup
-                    cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table);
+                    cache_insert(XBZRLE.cache, current_addr, dedup_page_buffer, full_page_hash_table, sub_page_hash_table);
                 }
               }
             }
@@ -948,6 +1065,11 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     //migration_log_file = fopen("/var/log/migration_log_without_skip.txt", "a");
     full_page_hash_table.table = create_table_chained(ram_pages);
     full_page_hash_table.size = ram_pages;
+
+    int sub_table_size = ram_pages * TARGET_PAGE_SIZE/SUB_PAGE_SIZE;
+    sub_page_hash_table.table = create_table_chained(sub_table_size);
+    sub_page_hash_table.size = sub_table_size;
+
     dedup_page_buffer = g_try_malloc0(TARGET_PAGE_SIZE);
     migration_log_file = fopen(qemu_name, "a");
 
@@ -1389,9 +1511,9 @@ void ram_handle_compressed(void *host, uint8_t ch, uint64_t size)
 
 
 /*
-* get_block_from_page_number: returns RAMBlock which contains the given page(identified by page number)
+* get_memory_page_from_page_number: returns memory_page pointer which is the given page(identified by page number)
 */
-static uint8_t * get_block_from_page_number(uint64_t page_number){
+static uint8_t * get_memory_page_from_page_number(uint64_t page_number){
     uint64_t ram_addr = page_number << TARGET_PAGE_BITS;
     //printf("offset : %" PRIu64 "  length %" PRIu64 "\n" , block->offset, block->length);
     RAMBlock *block = NULL;
@@ -1511,11 +1633,40 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
             host = host_from_stream_offset(f, addr, flags);
             int sub_flag = qemu_get_byte(f);
             uint64_t src_addr = qemu_get_be64(f);
-            src = get_block_from_page_number(src_addr >> TARGET_PAGE_BITS);
+            src = get_memory_page_from_page_number(src_addr >> TARGET_PAGE_BITS);
             if (!host || !src) {
                 return -EINVAL;
             }
-            memcpy(host, src, TARGET_PAGE_SIZE);
+            if(sub_flag & FULL_DEDUP_FLAG){
+                memcpy(host, src, TARGET_PAGE_SIZE);
+            }
+            else{
+                if(dedup_page_buffer == NULL){
+                    dedup_page_buffer = g_try_malloc0(TARGET_PAGE_SIZE);
+                }
+                if (!xbzrle_decoded_buf) {
+                    xbzrle_decoded_buf = g_malloc(TARGET_PAGE_SIZE);
+                }
+
+                memcpy(dedup_page_buffer, src, TARGET_PAGE_SIZE); //we will change this buffer to get new content for host page
+                qemu_get_buffer(f, xbzrle_decoded_buf, TARGET_PAGE_SIZE);
+
+                if(memcmp(dedup_page_buffer, xbzrle_decoded_buf, TARGET_PAGE_SIZE) != 0){
+                    printf("Inconsistency b/w src cache and destination ram page\n");
+                    exit(0);
+                }
+                else{
+                    printf("!!!!!!!!!!!!   OK   !!!!!!!!!!!!!!!!\n");
+                }
+
+                if (load_xbzrle(f, addr, dedup_page_buffer) < 0) {
+                    ret = -EINVAL;
+                    goto done;
+                }
+                //now dedup page buffer contains new page for host, now just copy
+                memcpy(host, dedup_page_buffer, TARGET_PAGE_SIZE);
+                printf("###########################################\n");
+            }
         }
         error = qemu_file_get_error(f);
         if (error) {

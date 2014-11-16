@@ -157,7 +157,7 @@ uint8_t *get_cached_data(const PageCache *cache, uint64_t addr)
     return cache_get_by_addr(cache, addr)->it_data;
 }
 
-int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_table_chained ht)
+int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_table_chained ht, hash_table_chained sub_ht)
 {
 
     CacheItem *it = NULL;
@@ -170,13 +170,18 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_tab
     if(it->it_addr != -1 && it->it_addr != addr) {
         //delete hash table entries if replacing another page. 
         //Same page hash entries have already been deleted before calling cache_insert
-      unsigned char sha256sum[32];
-      hash(it->it_data, cache->page_size, sha256sum);
-      int res = delete_entry_c(ht.table, ht.size, sha256sum, it->it_addr);
-      if (res != 1) {
-        //printf("Entry not found to delete\n");
-        //exit(0);
-      }
+        unsigned char sha256sum[32];
+        hash(it->it_data, cache->page_size, sha256sum);
+        int res = delete_entry_c(ht.table, ht.size, sha256sum, it->it_addr);
+        if (res != 1) {
+            //printf("Entry not found to delete\n");
+            //exit(0);
+        }
+        int offset = 0;
+        for(; offset < TARGET_PAGE_SIZE; offset+=SUB_PAGE_SIZE){
+            hash(it->it_data + offset, SUB_PAGE_SIZE, sha256sum);
+            delete_entry_c(sub_ht.table, sub_ht.size, sha256sum, it->it_addr+offset);         
+        }
     }
     /* allocate page */
     if (!it->it_data) {
@@ -192,6 +197,12 @@ int cache_insert(PageCache *cache, uint64_t addr, const uint8_t *pdata, hash_tab
     unsigned char sha256sum[32];
     hash(it->it_data, cache->page_size, sha256sum);
     insert_entry_c(ht.table, ht.size, sha256sum, addr); 
+
+    int offset = 0;
+    for(; offset < TARGET_PAGE_SIZE; offset+=SUB_PAGE_SIZE){
+        hash(it->it_data + offset, SUB_PAGE_SIZE, sha256sum);
+        insert_entry_c(sub_ht.table, sub_ht.size, sha256sum, addr+offset);         
+    }
     
     it->it_age = ++cache->max_item_age;
     it->it_addr = addr;
