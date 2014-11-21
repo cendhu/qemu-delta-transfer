@@ -648,7 +648,7 @@ static void send_dedup_page(ram_addr_t source, QEMUFile *f, uint8_t *current_dat
                             ram_addr_t current_addr, RAMBlock *block,
                             ram_addr_t offset, int cont, bool last_stage) {
    
-  printf("Transfer DEDUP : curr %" PRIu64 " dupl of%" PRIu64 "\n", current_addr, source);
+  //printf("Transfer DEDUP : curr %" PRIu64 " dupl of%" PRIu64 "\n", current_addr, source);
   int bytes_sent = 0;
   bytes_sent = save_block_hdr(f, block, offset, cont, DEDUP_FLAG);
   qemu_put_byte(f, FULL_DEDUP_FLAG);
@@ -660,7 +660,7 @@ static bool send_dedup_sub_page(ram_addr_t source, QEMUFile *f, uint8_t *current
                             ram_addr_t current_addr, RAMBlock *block,
                             ram_addr_t offset, int cont, bool last_stage) {
    
-  printf("Transfer DEDUP SUB : curr %" PRIu64 " partial dupl of%" PRIu64 "\n", current_addr, source);
+  //printf("Transfer DEDUP SUB : curr %" PRIu64 " partial dupl of%" PRIu64 "\n", current_addr, source);
 
   uint8_t* cached_src_page = get_cached_data(XBZRLE.cache, source);
 
@@ -744,6 +744,10 @@ void find_sub_page_matches(uint8_t * data){
  * Returns:  The number of bytes written.
  *           0 means no dirty pages
  */
+
+static int D_full_page_dup_count = 0;
+static int D_sub_page_dup_count = 0;
+static int D_sub_page_fraction_total = 0;
 
 static int ram_save_block(QEMUFile *f, bool last_stage)
 {
@@ -860,6 +864,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                   if(src_addr != current_addr) {
                     send_dedup_page(src_addr, f, dedup_page_buffer, current_addr, block,
                                               offset, cont, last_stage);
+                    D_full_page_dup_count++;
                   }
                   else { //this is supposed to happen since the dirty bitmap is not reset in between the round when the page is transferred
                     //printf("Src address equals current address\n");
@@ -885,9 +890,13 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                     }
 
                     if(best_addr != -1 && best_count > SUB_PAGE_THRESHHOLD){
-                        printf("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
+                        //printf("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
                         sub_page_dedup = send_dedup_sub_page(best_addr, f, dedup_page_buffer, current_addr, block,
                                               offset, cont, last_stage);
+                        if(sub_page_dedup){
+                            D_sub_page_dup_count++;
+                            D_sub_page_fraction_total += best_count;
+                        }
                     }
                     else{
                         //printf("*********************************************************\n");
@@ -1257,6 +1266,8 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     ram_control_after_iterate(f, RAM_CONTROL_FINISH);
     migration_end();
 
+    printf("full : %d, subtotal : %d , fraction_total : %d\n", D_full_page_dup_count, D_sub_page_dup_count, D_sub_page_fraction_total);
+    
     //CENDHU_START
     fprintf(migration_log_file, "normal %" PRIu64 " zero %" PRIu64 " wrongdp %" PRIu64 " misses %" PRIu64 " sentFromCacheP %" PRIu64 " sendFromCacheT %" PRIu64 " ",
             normal_pages_sent, zero_pages_sent, wrong_dirty_page, round_xbzrle_cache_miss, round_xbzrle_pages, round_xbzrle_bytes);
